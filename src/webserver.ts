@@ -4,6 +4,7 @@ import http from "http";
 import path from "path";
 import { PassThrough } from "stream";
 import { discordPlayer } from "./player";
+import prism from "prism-media";
 
 export function startWebserver(port: number = 3000) {
     const app = express();
@@ -12,14 +13,41 @@ export function startWebserver(port: number = 3000) {
 
     const listeners = new Set<express.Response>();
     let headerChunks: Buffer[] = [];
+    
+    // Create a single, continuous Ogg stream for all web listeners
+    const oggStream = new prism.opus.OggLogicalBitstream({
+        opusHead: new prism.opus.OpusHead({
+            channelCount: 2,
+            sampleRate: 48000,
+        }),
+        pageSizeControl: {
+            maxPackets: 10,
+        },
+    });
+
+    // Forward Ogg pages to all connected web listeners
+    oggStream.on("data", (chunk) => {
+        // Cache the first 2 chunks (headers)
+        if (headerChunks.length < 2) {
+            headerChunks.push(chunk);
+        }
+        listeners.forEach(res => res.write(chunk));
+    });
+
+    // Prime the stream with a silent packet to generate headers immediately
+    // Silent Opus packet (1 frame, 20ms)
+    const silentPacket = Buffer.from([0xf8, 0xff, 0xfe]);
+    oggStream.write(silentPacket);
 
     app.use(express.static(path.join(__dirname, "../public")));
 
     // Endpoint for receiving (listening) audio from Discord
     app.get("/listen", (req, res) => {
         res.setHeader("Content-Type", "audio/ogg");
+        res.setHeader("Transfer-Encoding", "chunked");
+        res.setHeader("Connection", "keep-alive");
         
-        // Send cached headers so the browser can decode the stream
+        // Send cached headers immediately so the browser recognizes the stream
         headerChunks.forEach(chunk => res.write(chunk));
         
         listeners.add(res);
@@ -31,13 +59,9 @@ export function startWebserver(port: number = 3000) {
         });
     });
 
-    // Function to broadcast audio chunks to all listeners
-    (global as any).broadcastToWeb = (chunk: Buffer) => {
-        // Store the first two chunks as headers (OpusHead and OpusTags)
-        if (headerChunks.length < 2) {
-            headerChunks.push(chunk);
-        }
-        listeners.forEach(res => res.write(chunk));
+    // Function to broadcast raw Opus packets from Discord to the shared Ogg stream
+    (global as any).broadcastOpusToWeb = (chunk: Buffer) => {
+        oggStream.write(chunk);
     };
 
     wss.on("connection", (ws) => {
@@ -47,7 +71,7 @@ export function startWebserver(port: number = 3000) {
         discordPlayer.playStream(audioStream);
 
         ws.on("message", (data: Buffer) => {
-            // Write incoming audio chunks to the stream
+            // console.log(`[webserver] Received chunk: ${data.length} bytes`);
             audioStream.write(data);
         });
 

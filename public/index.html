@@ -163,9 +163,12 @@
                 listenStatus.innerText = 'Disconnected';
                 isListening = false;
             } else {
-                discordAudio.src = '/listen';
+                discordAudio.src = '/listen?t=' + Date.now();
                 discordAudio.style.display = 'block';
-                discordAudio.play();
+                discordAudio.play().catch(err => {
+                    console.error('Playback error:', err);
+                    listenStatus.innerText = 'Playback failed: ' + err.message;
+                });
                 listenBtn.innerText = 'Stop Listening';
                 listenBtn.style.backgroundColor = '#f04747';
                 listenStatus.innerText = 'Listening live...';

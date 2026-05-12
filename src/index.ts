@@ -1,3 +1,4 @@
+import "./mock-crc";
 import { Client } from "discord.js-selfbot-v13";
 import { startRecording } from "./recorder";
 import { config } from "./config";
