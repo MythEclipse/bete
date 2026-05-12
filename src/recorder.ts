@@ -90,7 +90,7 @@ export async function startRecording(client: Client, channel: VoiceChannel): Pro
         const audioStream = receiver.subscribe(userId, {
             end: {
                 behavior: EndBehaviorType.AfterSilence,
-                duration: 3000, // 3 seconds — avoids FFmpeg restart overhead between utterances
+                duration: 3000,
             },
         });
 
@@ -105,40 +105,48 @@ export async function startRecording(client: Client, channel: VoiceChannel): Pro
             const out = fs.createWriteStream(filename);
             audioStream.pipe(packetFilterForOgg).pipe(oggStream).pipe(out);
 
-            // --- Web broadcast: pure JS Opus → PCM, no FFmpeg ---
-            // Create a fresh decoder for each user session
-            const opusDecoder = new prism.opus.Decoder({ frameSize: 960, channels: 2, rate: 48000 });
+            // --- Web broadcast: prism decoder with auto-recreate on error ---
+            // Prism's Transform stream enters a dead error state after first bad packet.
+            // We recreate the decoder instance when this happens, so subsequent packets
+            // are decoded normally. Each packet failure is fully isolated.
+            function makePcmListener(onPcm: (pcm: Buffer) => void) {
+                const d = new prism.opus.Decoder({ frameSize: 960, channels: 2, rate: 48000 });
+                d.on('data', onPcm);
+                d.on('error', () => {
+                    // Decoder is dead — swap to a fresh one
+                    currentDecoder = makePcmListener(onPcm);
+                });
+                return d;
+            }
 
-            // CRITICAL: Swallow decode errors (DAVE/bad packets) without crashing
-            opusDecoder.on('error', () => {});
-
-            // Downsample 48kHz stereo → 24kHz mono (take left channel, every 2nd sample)
-            opusDecoder.on('data', (pcm: Buffer) => {
+            const handlePcm = (pcm: Buffer) => {
                 if (!(global as any).broadcastPcmToWeb) return;
-                // Input:  48kHz stereo s16le → 4 bytes per sample-pair
-                // Output: 24kHz mono  s16le → 2 bytes per sample
+                // Downsample 48kHz stereo → 24kHz mono (left channel, every 2nd sample)
                 const outBuf = Buffer.alloc(pcm.length / 4);
                 for (let i = 0; i < outBuf.length / 2; i++) {
                     outBuf.writeInt16LE(pcm.readInt16LE(i * 8), i * 2);
                 }
                 (global as any).broadcastPcmToWeb(outBuf, userId);
-            });
+            };
 
-            // Feed Opus packets one-by-one; catch per-packet decode errors
+            let currentDecoder = makePcmListener(handlePcm);
+
+            // Feed Opus packets one-by-one
             let packetCount = 0;
             audioStream.on('data', (chunk: Buffer) => {
                 packetCount++;
                 if (packetCount <= 5) {
                     console.log(`[recorder] Pkt #${packetCount} from ${userId}: ${chunk.length}b | 0x${chunk.slice(0,4).toString('hex')}`);
                 }
-                if (chunk.length < 8) return; // skip tiny control packets
+                if (chunk.length < 8) return; // skip tiny control/DTX packets
                 try {
-                    opusDecoder.write(chunk);
-                } catch (_) {} // per-packet isolation — don't let one bad packet stop the stream
+                    currentDecoder.write(chunk);
+                } catch (_) {
+                    currentDecoder = makePcmListener(handlePcm);
+                }
             });
 
             audioStream.on('end', () => {
-                opusDecoder.end();
                 if ((global as any).updateActiveUser) {
                     (global as any).updateActiveUser(userId, { username, avatar, speaking: false });
                 }

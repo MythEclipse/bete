@@ -41,6 +41,14 @@ export class DiscordPlayer {
         this.player.play(resource);
     }
 
+    public pause() {
+        this.player.pause(true);
+    }
+
+    public unpause() {
+        this.player.unpause();
+    }
+
     public stop() {
         this.player.stop();
     }
