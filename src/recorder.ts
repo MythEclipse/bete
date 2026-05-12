@@ -29,7 +29,7 @@ export async function startRecording(client: Client, channel: VoiceChannel): Pro
         guildId: channel.guild.id,
         adapterCreator: channel.guild.voiceAdapterCreator as any,
         selfDeaf: false,
-        selfMute: true,
+        selfMute: false,
         debug: true,
     });
 

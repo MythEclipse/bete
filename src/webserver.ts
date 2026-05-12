@@ -11,12 +11,17 @@ export function startWebserver(port: number = 3000) {
     const wss = new WebSocketServer({ server });
 
     const listeners = new Set<express.Response>();
+    let headerChunks: Buffer[] = [];
 
     app.use(express.static(path.join(__dirname, "../public")));
 
     // Endpoint for receiving (listening) audio from Discord
     app.get("/listen", (req, res) => {
         res.setHeader("Content-Type", "audio/ogg");
+        
+        // Send cached headers so the browser can decode the stream
+        headerChunks.forEach(chunk => res.write(chunk));
+        
         listeners.add(res);
         console.log(`[webserver] New listener connected. Total: ${listeners.size}`);
 
@@ -28,6 +33,10 @@ export function startWebserver(port: number = 3000) {
 
     // Function to broadcast audio chunks to all listeners
     (global as any).broadcastToWeb = (chunk: Buffer) => {
+        // Store the first two chunks as headers (OpusHead and OpusTags)
+        if (headerChunks.length < 2) {
+            headerChunks.push(chunk);
+        }
         listeners.forEach(res => res.write(chunk));
     };
 

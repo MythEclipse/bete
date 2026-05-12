@@ -8,6 +8,8 @@ import {
 } from "@discordjs/voice";
 import { Readable } from "stream";
 
+import prism from "prism-media";
+
 export class DiscordPlayer {
     private player: AudioPlayer;
     private connection: VoiceConnection | null = null;
@@ -30,12 +32,13 @@ export class DiscordPlayer {
     }
 
     public playStream(stream: Readable) {
-        // We assume the stream is Opus or PCM. 
-        // For MediaRecorder (webm/opus), we might need to parse it.
-        // But let's start with a simple resource.
-        const resource = createAudioResource(stream, {
-            inputType: StreamType.WebmOpus,
+        // Use WebmDemuxer to extract Opus packets from browser stream
+        const demuxer = new prism.opus.WebmDemuxer();
+        
+        const resource = createAudioResource(stream.pipe(demuxer), {
+            inputType: StreamType.Opus,
         });
+        
         this.player.play(resource);
     }
 
