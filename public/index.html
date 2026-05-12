@@ -3,180 +3,160 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Discord Audio Transmitter</title>
+    <title>Discord Audio Gateway v4</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
         :root {
             --primary: #5865F2;
+            --success: #43b581;
+            --danger: #f04747;
             --bg: #36393f;
-            --card-bg: #2f3136;
+            --card: #2f3136;
             --text: #ffffff;
             --text-muted: #b9bbbe;
         }
 
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background-color: var(--bg);
             color: var(--text);
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
-            margin: 0;
-            overflow: hidden;
+            min-height: 100vh;
+            padding: 20px;
         }
 
-        .card {
-            background-color: var(--card-bg);
+        .container {
+            background-color: var(--card);
             padding: 2rem;
-            border-radius: 12px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.2);
-            text-align: center;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
             width: 100%;
-            max-width: 400px;
-            transition: transform 0.3s ease;
+            max-width: 500px;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.05);
         }
 
-        .card:hover {
-            transform: translateY(-5px);
-        }
-
-        h1 {
-            font-size: 1.5rem;
-            margin-bottom: 0.5rem;
-        }
-
-        p {
-            color: var(--text-muted);
-            margin-bottom: 2rem;
-        }
-
-        .status {
+        .status-card {
+            background: rgba(0,0,0,0.2);
+            padding: 1.5rem;
+            border-radius: 15px;
+            margin-bottom: 1.5rem;
             display: flex;
+            flex-direction: column;
             align-items: center;
-            justify-content: center;
-            margin-bottom: 2rem;
-            font-size: 0.9rem;
+            gap: 10px;
         }
 
-        .indicator {
+        .status-indicator {
             width: 12px;
             height: 12px;
             border-radius: 50%;
-            background-color: #ff4747;
-            margin-right: 8px;
-            box-shadow: 0 0 8px #ff4747;
-        }
-
-        .indicator.active {
-            background-color: #43b581;
-            box-shadow: 0 0 8px #43b581;
-        }
-
-        button {
-            background-color: var(--primary);
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            font-size: 1rem;
-            font-weight: 600;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background-color 0.2s, transform 0.1s;
-            width: 100%;
-        }
-
-        button:hover {
-            background-color: #4752c4;
-        }
-
-        button:active {
-            transform: scale(0.98);
-        }
-
-        button:disabled {
             background-color: #4f545c;
-            cursor: not-allowed;
         }
+
+        .status-indicator.active {
+            background-color: var(--success);
+            box-shadow: 0 0 15px var(--success);
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border-radius: 10px;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            width: 100%;
+            font-size: 1rem;
+        }
+
+        .btn-primary { background-color: var(--primary); color: white; }
+        .btn-success { background-color: var(--success); color: white; }
+        .btn-danger { background-color: var(--danger); color: white; }
 
         .visualizer {
-            width: 100%;
-            height: 60px;
-            background: rgba(0,0,0,0.1);
-            margin-top: 2rem;
-            border-radius: 4px;
             display: flex;
             align-items: flex-end;
-            gap: 2px;
-            padding: 4px;
-            box-sizing: border-box;
+            justify-content: center;
+            gap: 3px;
+            height: 50px;
+            margin-top: 10px;
+            width: 100%;
         }
 
         .bar {
-            flex: 1;
-            background: var(--primary);
+            width: 6px;
+            background: linear-gradient(to top, var(--primary), #8088f5);
+            border-radius: 3px;
             height: 2px;
-            transition: height 0.1s ease;
+        }
+
+        #userList {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 1rem;
+            text-align: left;
+        }
+
+        .user-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.03);
+            border-left: 4px solid transparent;
+        }
+
+        .user-item.speaking {
+            border-left-color: var(--success);
+            background: rgba(67, 181, 129, 0.1);
         }
     </style>
 </head>
 <body>
-    <div class="card">
-        <h1>Audio Transmitter</h1>
-        <p>Transmit your microphone to Discord Voice</p>
-        
-        <div class="status">
-            <div id="indicator" class="indicator"></div>
-            <span id="statusText">Disconnected</span>
+    <div class="container">
+        <h1 style="margin-bottom: 0.5rem;">Discord Gateway v4</h1>
+        <p style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 2rem;">Optimized 24kHz Mono Bridge</p>
+
+        <div class="status-card">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div id="statusIndicator" class="status-indicator"></div>
+                <span id="statusText">Connecting...</span>
+            </div>
+            <button id="toggleBtn" class="btn btn-primary">Start Transmitting</button>
+            <div class="visualizer" id="visualizer"></div>
         </div>
 
-        <button id="toggleBtn">Start Transmitting</button>
-
-        <div style="margin-top: 2rem; border-top: 1px solid #4f545c; padding-top: 1.5rem;">
-            <h3>Listen to Discord</h3>
-            <button id="listenBtn" style="margin-bottom: 0.5rem; background-color: #43b581;">Join Listen Channel</button>
-            <audio id="discordAudio" controls style="width: 100%; display: none;"></audio>
-            <p id="listenStatus" style="font-size: 0.8rem; margin-top: 0.5rem;">Click button to listen</p>
+        <div class="status-card">
+            <span id="listenStatus" style="color: var(--text-muted);">Speaker Off</span>
+            <button id="listenBtn" class="btn btn-success">Join Listen Channel</button>
         </div>
 
-        <div class="visualizer" id="visualizer">
-            <!-- Bars will be generated by JS -->
+        <div style="margin-top: 1.5rem;">
+            <h3 style="font-size: 0.9rem; color: var(--text-muted); text-align: left; margin-bottom: 10px;">Participants</h3>
+            <div id="userList"></div>
         </div>
     </div>
 
     <script>
         const toggleBtn = document.getElementById('toggleBtn');
-        const indicator = document.getElementById('indicator');
-        const statusText = document.getElementById('statusText');
-        const visualizer = document.getElementById('visualizer');
-        const discordAudio = document.getElementById('discordAudio');
-        const listenStatus = document.getElementById('listenStatus');
         const listenBtn = document.getElementById('listenBtn');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const statusText = document.getElementById('statusText');
+        const listenStatus = document.getElementById('listenStatus');
+        const userList = document.getElementById('userList');
+        const visualizer = document.getElementById('visualizer');
 
-        let isListening = false;
-        listenBtn.onclick = () => {
-            if (isListening) {
-                discordAudio.pause();
-                discordAudio.src = '';
-                discordAudio.style.display = 'none';
-                listenBtn.innerText = 'Join Listen Channel';
-                listenBtn.style.backgroundColor = '#43b581';
-                listenStatus.innerText = 'Disconnected';
-                isListening = false;
-            } else {
-                discordAudio.src = '/listen?t=' + Date.now();
-                discordAudio.style.display = 'block';
-                discordAudio.play().catch(err => {
-                    console.error('Playback error:', err);
-                    listenStatus.innerText = 'Playback failed: ' + err.message;
-                });
-                listenBtn.innerText = 'Stop Listening';
-                listenBtn.style.backgroundColor = '#f04747';
-                listenStatus.innerText = 'Listening live...';
-                isListening = true;
-            }
-        };
-
-        // Create visualizer bars
         for (let i = 0; i < 32; i++) {
             const bar = document.createElement('div');
             bar.className = 'bar';
@@ -184,12 +164,90 @@
         }
         const bars = document.querySelectorAll('.bar');
 
-        let isStreaming = false;
         let socket = null;
-        let mediaRecorder = null;
-        let audioContext = null;
-        let analyser = null;
-        let dataArray = null;
+        let isStreaming = false;
+        let isListening = false;
+        let audioContextTransmit = null;
+        let audioContextListen = null;
+        let processor = null;
+        let nextStartTime = 0;
+
+        // Optimized settings (1/4 bandwidth compared to 48k Stereo)
+        const SAMPLE_RATE = 24000;
+        const CHANNELS = 1;
+
+        function initWebSocket() {
+            if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
+            socket = new WebSocket(`ws://${window.location.hostname}:3001`);
+            socket.binaryType = 'arraybuffer';
+
+            socket.onopen = () => {
+                statusText.innerText = 'Server Connected';
+                statusIndicator.classList.add('active');
+            };
+
+            socket.onmessage = (event) => {
+                if (event.data instanceof ArrayBuffer) {
+                    handleIncomingPCM(event.data);
+                } else {
+                    try {
+                        const data = JSON.parse(event.data);
+                        if (data.type === 'user_state') updateUserList(data.users);
+                    } catch (e) {}
+                }
+            };
+
+            socket.onclose = () => {
+                statusText.innerText = 'Server Offline';
+                statusIndicator.classList.remove('active');
+                setTimeout(initWebSocket, 2000);
+            };
+        }
+
+        function updateUserList(users) {
+            userList.innerHTML = users.map(user => `
+                <div class="user-item ${user.speaking ? 'speaking' : ''}">
+                    <img src="${user.avatar}" style="width: 32px; height: 32px; border-radius: 50%;">
+                    <div style="flex: 1;">
+                        <div style="font-size: 0.85rem; font-weight: 600;">${user.username}</div>
+                        <div style="font-size: 0.7rem; color: ${user.speaking ? '#43b581' : '#b9bbbe'};">
+                            ${user.speaking ? 'Speaking' : 'Idle'}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        const userTimelines = new Map();
+
+        function handleIncomingPCM(data) {
+            if (!isListening || !audioContextListen) return;
+            
+            // Parse 4-byte hash header
+            const headerView = new DataView(data, 0, 4);
+            const userIdHash = headerView.getInt32(0, true);
+            const audioData = data.slice(4);
+
+            const int16Array = new Int16Array(audioData);
+            const float32Array = new Float32Array(int16Array.length);
+            for (let i = 0; i < int16Array.length; i++) float32Array[i] = int16Array[i] / 32768;
+
+            const audioBuffer = audioContextListen.createBuffer(CHANNELS, float32Array.length / CHANNELS, SAMPLE_RATE);
+            const nowBuffering = audioBuffer.getChannelData(0);
+            for (let i = 0; i < audioBuffer.length; i++) nowBuffering[i] = float32Array[i];
+
+            const source = audioContextListen.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(audioContextListen.destination);
+
+            const currentTime = audioContextListen.currentTime;
+            let userNextStartTime = userTimelines.get(userIdHash) || 0;
+            
+            if (userNextStartTime < currentTime) userNextStartTime = currentTime + 0.05;
+            source.start(userNextStartTime);
+            userNextStartTime += audioBuffer.duration;
+            userTimelines.set(userIdHash, userNextStartTime);
+        }
 
         toggleBtn.onclick = async () => {
             if (isStreaming) {
@@ -202,75 +260,68 @@
         async function startStreaming() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                isStreaming = true;
+                toggleBtn.innerText = 'Stop Transmitting';
+                toggleBtn.className = 'btn btn-danger';
+
+                audioContextTransmit = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SAMPLE_RATE });
+                const source = audioContextTransmit.createMediaStreamSource(stream);
                 
-                // WebSocket Setup
-                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                socket = new WebSocket(`${protocol}//${window.location.host}`);
-                socket.binaryType = 'arraybuffer';
-
-                socket.onopen = () => {
-                    indicator.classList.add('active');
-                    statusText.innerText = 'Transmitting...';
-                    toggleBtn.innerText = 'Stop Transmitting';
-                    isStreaming = true;
-
-                    // MediaRecorder Setup
-                    mediaRecorder = new MediaRecorder(stream, { 
-                        mimeType: 'audio/webm;codecs=opus' 
-                    });
-
-                    mediaRecorder.ondataavailable = async (event) => {
-                        if (event.data.size > 0 && socket.readyState === WebSocket.OPEN) {
-                            socket.send(await event.data.arrayBuffer());
-                        }
-                    };
-
-                    mediaRecorder.start(100); // 100ms chunks
-                };
-
-                socket.onclose = () => {
-                    stopStreaming();
-                };
-
-                // Visualizer Setup
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                const source = audioContext.createMediaStreamSource(stream);
-                analyser = audioContext.createAnalyser();
+                const analyser = audioContextTransmit.createAnalyser();
                 analyser.fftSize = 64;
                 source.connect(analyser);
-                dataArray = new Uint8Array(analyser.frequencyBinCount);
-                draw();
+                const dataArray = new Uint8Array(analyser.frequencyBinCount);
 
+                processor = audioContextTransmit.createScriptProcessor(4096, 1, 1);
+                source.connect(processor);
+                processor.connect(audioContextTransmit.destination);
+
+                processor.onaudioprocess = (e) => {
+                    if (!isStreaming || socket.readyState !== WebSocket.OPEN) return;
+                    
+                    const inputData = e.inputBuffer.getChannelData(0);
+                    const pcmData = new Int16Array(inputData.length);
+                    for (let i = 0; i < inputData.length; i++) {
+                        pcmData[i] = Math.max(-1, Math.min(1, inputData[i])) * 32767;
+                    }
+                    socket.send(pcmData.buffer);
+
+                    analyser.getByteFrequencyData(dataArray);
+                    bars.forEach((bar, index) => {
+                        const percent = (dataArray[index] / 255) * 100;
+                        bar.style.height = `${Math.max(2, percent)}%`;
+                    });
+                };
             } catch (err) {
-                console.error('Error accessing microphone:', err);
-                alert('Could not access microphone. Make sure you are on HTTPS or localhost.');
+                alert('Microphone access denied: ' + err.message);
             }
         }
 
         function stopStreaming() {
-            if (mediaRecorder) mediaRecorder.stop();
-            if (socket) socket.close();
-            if (audioContext) audioContext.close();
-            
-            indicator.classList.remove('active');
-            statusText.innerText = 'Disconnected';
-            toggleBtn.innerText = 'Start Transmitting';
             isStreaming = false;
-            
+            if (processor) processor.disconnect();
+            if (audioContextTransmit) audioContextTransmit.close();
+            toggleBtn.innerText = 'Start Transmitting';
+            toggleBtn.className = 'btn btn-primary';
             bars.forEach(bar => bar.style.height = '2px');
         }
 
-        function draw() {
-            if (!isStreaming) return;
-            requestAnimationFrame(draw);
-            analyser.getByteFrequencyData(dataArray);
-            
-            bars.forEach((bar, index) => {
-                const value = dataArray[index] || 0;
-                const percent = (value / 255) * 100;
-                bar.style.height = `${Math.max(2, percent)}%`;
-            });
-        }
+        listenBtn.onclick = () => {
+            if (!audioContextListen) audioContextListen = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SAMPLE_RATE });
+            if (isListening) {
+                audioContextListen.suspend();
+                listenBtn.innerText = 'Join Listen Channel';
+                listenStatus.innerText = 'Speaker Off';
+                isListening = false;
+            } else {
+                audioContextListen.resume();
+                listenBtn.innerText = 'Stop Listening';
+                listenStatus.innerText = 'Listening Live...';
+                isListening = true;
+            }
+        };
+
+        initWebSocket();
     </script>
 </body>
 </html>

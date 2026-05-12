@@ -33,13 +33,9 @@ export class DiscordPlayer {
 
     public playStream(stream: Readable) {
         console.log("[player] Starting new audio stream...");
-        // Use WebmDemuxer to extract Opus packets from browser stream
-        const demuxer = new prism.opus.WebmDemuxer();
         
-        demuxer.on('error', err => console.error("[player] Demuxer error:", err));
-        
-        const resource = createAudioResource(stream.pipe(demuxer), {
-            inputType: StreamType.Opus,
+        const resource = createAudioResource(stream, {
+            inputType: StreamType.OggOpus,
         });
         
         this.player.play(resource);

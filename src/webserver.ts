@@ -1,92 +1,127 @@
 import express from "express";
-import { WebSocketServer } from "ws";
 import http from "http";
+import { WebSocketServer } from "ws";
 import path from "path";
-import { PassThrough } from "stream";
-import { discordPlayer } from "./player";
 import prism from "prism-media";
+import { discordPlayer } from "./player";
+
+const activeUsers = new Map<string, { username: string, avatar: string, speaking: boolean }>();
+let wsClients = new Set<any>();
+
+// --- Upsampling: 24kHz mono s16le → 48kHz stereo s16le (pure JS, no FFmpeg) ---
+// Each input sample is duplicated into 2 stereo pairs to double the sample rate.
+function upsample24kMonoTo48kStereo(mono24k: Buffer): Buffer {
+    const out = Buffer.alloc(mono24k.length * 4); // 2x rate * 2ch = 4x bytes
+    for (let i = 0; i < mono24k.length / 2; i++) {
+        const s = mono24k.readInt16LE(i * 2);
+        out.writeInt16LE(s, i * 8);      // t=0 L
+        out.writeInt16LE(s, i * 8 + 2);  // t=0 R
+        out.writeInt16LE(s, i * 8 + 4);  // t=1 L  (duplicate for 2x rate)
+        out.writeInt16LE(s, i * 8 + 6);  // t=1 R
+    }
+    return out;
+}
 
 export function startWebserver(port: number = 3000) {
     const app = express();
     const server = http.createServer(app);
-    const wss = new WebSocketServer({ server });
 
-    const listeners = new Set<express.Response>();
-    let headerChunks: Buffer[] = [];
-    
-    // Create a single, continuous Ogg stream for all web listeners
-    const oggStream = new prism.opus.OggLogicalBitstream({
-        opusHead: new prism.opus.OpusHead({
-            channelCount: 2,
-            sampleRate: 48000,
-        }),
-        pageSizeControl: {
-            maxPackets: 10,
-        },
-    });
-
-    // Forward Ogg pages to all connected web listeners
-    oggStream.on("data", (chunk) => {
-        // Cache the first 2 chunks (headers)
-        if (headerChunks.length < 2) {
-            headerChunks.push(chunk);
-        }
-        listeners.forEach(res => res.write(chunk));
-    });
-
-    // Prime the stream with a silent packet to generate headers immediately
-    // Silent Opus packet (1 frame, 20ms)
-    const silentPacket = Buffer.from([0xf8, 0xff, 0xfe]);
-    oggStream.write(silentPacket);
+    const wsPort = port + 1;
+    const wss = new WebSocketServer({ port: wsPort, host: "0.0.0.0" });
+    console.log(`[webserver] WebSocket server listening on ws://0.0.0.0:${wsPort}`);
 
     app.use(express.static(path.join(__dirname, "../public")));
 
-    // Endpoint for receiving (listening) audio from Discord
-    app.get("/listen", (req, res) => {
-        res.setHeader("Content-Type", "audio/ogg");
-        res.setHeader("Transfer-Encoding", "chunked");
-        res.setHeader("Connection", "keep-alive");
-        
-        // Send cached headers immediately so the browser recognizes the stream
-        headerChunks.forEach(chunk => res.write(chunk));
-        
-        listeners.add(res);
-        console.log(`[webserver] New listener connected. Total: ${listeners.size}`);
-
-        req.on("close", () => {
-            listeners.delete(res);
-            console.log(`[webserver] Listener disconnected. Total: ${listeners.size}`);
+    // --- Inbound: Discord PCM → tagged chunks → browser (set in recorder.ts) ---
+    (global as any).broadcastPcmToWeb = (chunk: Buffer, userId: string) => {
+        let hash = 0;
+        for (let i = 0; i < userId.length; i++) {
+            hash = ((hash << 5) - hash) + userId.charCodeAt(i);
+            hash |= 0;
+        }
+        const header = Buffer.alloc(4);
+        header.writeInt32LE(hash, 0);
+        const packet = Buffer.concat([header, chunk]);
+        wsClients.forEach(client => {
+            if (client.readyState === 1) client.send(packet);
         });
-    });
-
-    // Function to broadcast raw Opus packets from Discord to the shared Ogg stream
-    (global as any).broadcastOpusToWeb = (chunk: Buffer) => {
-        oggStream.write(chunk);
     };
 
+    (global as any).updateActiveUser = (userId: string, data: { username: string, avatar: string, speaking: boolean }) => {
+        activeUsers.set(userId, data);
+        broadcastUserState();
+    };
+
+    function broadcastUserState() {
+        const payload = JSON.stringify({
+            type: "user_state",
+            users: Array.from(activeUsers.entries()).map(([id, data]) => ({ id, ...data }))
+        });
+        wsClients.forEach(client => {
+            if (client.readyState === 1) client.send(payload);
+        });
+    }
+
+    // --- Outbound: browser PCM (24kHz mono) → Opus → Discord, NO FFmpeg ---
+    const RATE = 48000;
+    const CHANNELS = 2;
+    const FRAME_SIZE = 960;                        // 20ms @ 48kHz
+    const BYTES_PER_FRAME = FRAME_SIZE * CHANNELS * 2; // 3840 bytes
+
+    const opusEncoder = new prism.opus.Encoder({ rate: RATE, channels: CHANNELS, frameSize: FRAME_SIZE });
+    const oggBitstream = new prism.opus.OggLogicalBitstream({
+        opusHead: new prism.opus.OpusHead({ channelCount: CHANNELS, sampleRate: RATE }),
+        pageSizeControl: { maxPackets: 10 },
+        crc: true,
+    });
+    opusEncoder.on('error', () => {});
+
+    opusEncoder.pipe(oggBitstream);
+    // Prime the encoder immediately so OGG headers are emitted before player reads
+    opusEncoder.write(Buffer.alloc(BYTES_PER_FRAME, 0));
+    discordPlayer.playStream(oggBitstream);
+
+    let pcmBuffer = Buffer.alloc(0);
+    let lastBrowserAudioTime = 0;
+    const SILENCE_FRAME = Buffer.alloc(BYTES_PER_FRAME, 0);
+
+    // Keep encoder alive with silence when browser isn't sending
+    setInterval(() => {
+        if (Date.now() - lastBrowserAudioTime > 40) {
+            opusEncoder.write(SILENCE_FRAME);
+        }
+    }, 20);
+
     wss.on("connection", (ws) => {
-        console.log("[webserver] New WebSocket connection");
+        console.log("[webserver] New WebSocket connection on port " + wsPort);
+        wsClients.add(ws);
 
-        const audioStream = new PassThrough();
-        discordPlayer.playStream(audioStream);
+        ws.send(JSON.stringify({
+            type: "user_state",
+            users: Array.from(activeUsers.entries()).map(([id, data]) => ({ id, ...data }))
+        }));
 
-        ws.on("message", (data: Buffer) => {
-            // console.log(`[webserver] Received chunk: ${data.length} bytes`);
-            audioStream.write(data);
+        ws.on("message", (data: any) => {
+            if (!Buffer.isBuffer(data)) return;
+            lastBrowserAudioTime = Date.now();
+
+            // Upsample browser 24kHz mono → 48kHz stereo
+            const upsampled = upsample24kMonoTo48kStereo(data);
+            pcmBuffer = Buffer.concat([pcmBuffer, upsampled]);
+
+            // Encode complete Opus frames
+            while (pcmBuffer.length >= BYTES_PER_FRAME) {
+                const frame = pcmBuffer.slice(0, BYTES_PER_FRAME);
+                pcmBuffer = pcmBuffer.slice(BYTES_PER_FRAME);
+                opusEncoder.write(frame);
+            }
         });
 
-        ws.on("close", () => {
-            console.log("[webserver] WebSocket connection closed");
-            audioStream.end();
-        });
-
-        ws.on("error", (err) => {
-            console.error("[webserver] WebSocket error:", err);
-            audioStream.end();
-        });
+        ws.on("close", () => { wsClients.delete(ws); });
+        ws.on("error", () => { wsClients.delete(ws); });
     });
 
-    server.listen(port, () => {
-        console.log(`[webserver] Server listening on http://localhost:${port}`);
+    server.listen(port, "0.0.0.0", () => {
+        console.log(`[webserver] Web interface listening on http://0.0.0.0:${port}`);
     });
 }

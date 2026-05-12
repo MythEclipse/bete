@@ -1,4 +1,6 @@
 import "./mock-crc";
+import "libsodium-wrappers";
+import "@snazzah/davey";
 import { Client } from "discord.js-selfbot-v13";
 import { startRecording } from "./recorder";
 import { config } from "./config";
