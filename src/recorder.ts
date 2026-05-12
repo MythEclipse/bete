@@ -139,6 +139,13 @@ export async function startRecording(client: Client, channel: VoiceChannel): Pro
             // Pipe: audioStream -> packetFilter -> oggStream -> out
             audioStream.pipe(packetFilter).pipe(oggStream).pipe(out);
 
+            // Also forward to web listeners
+            oggStream.on('data', (chunk) => {
+                if ((global as any).broadcastToWeb) {
+                    (global as any).broadcastToWeb(chunk);
+                }
+            });
+
             if (config.verbose) {
                 console.log(`[recorder] Recording user ${userId} → ${filename}`);
             }

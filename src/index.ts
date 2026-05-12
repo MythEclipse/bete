@@ -1,6 +1,9 @@
 import { Client } from "discord.js-selfbot-v13";
 import { startRecording } from "./recorder";
 import { config } from "./config";
+import { startWebserver } from "./webserver";
+import { discordPlayer } from "./player";
+import { getVoiceConnection } from "@discordjs/voice";
 
 // Validasi environment variables
 const token = process.env.DISCORD_TOKEN;
@@ -42,6 +45,16 @@ client.on("ready", async () => {
         console.log(`[bot] Joining voice channel: #${channel.name} (${channel.id})`);
     }
     await startRecording(client, channel as any);
+    
+    // Set up player connection
+    const connection = getVoiceConnection(guildId!);
+    if (connection) {
+        discordPlayer.setConnection(connection);
+        console.log("[bot] Player connected to voice channel");
+    }
+
+    // Start Webserver
+    startWebserver(3000);
 });
 
 client.on("error", (err) => {
