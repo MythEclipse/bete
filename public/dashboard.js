@@ -493,6 +493,7 @@ const state = {
         const sampleRate = audioData.sampleRate;
         const frameCount = audioData.numberOfFrames;
         const numberOfChannels = audioData.numberOfChannels;
+        console.log(`AudioData: ${frameCount} frames, ${numberOfChannels} ch, ${sampleRate}Hz`);
         const audioBuffer = state.audioContextListen.createBuffer(
           numberOfChannels,
           frameCount,
@@ -500,9 +501,8 @@ const state = {
         );
         for (let ch = 0; ch < numberOfChannels; ch++) {
           const channelData = audioBuffer.getChannelData(ch);
-          const tempArray = new Float32Array(frameCount);
-          audioData.copyTo(tempArray, { planeIndex: ch });
-          channelData.set(tempArray);
+          console.log(`Channel ${ch}: copyTo into ${channelData.length} samples`);
+          audioData.copyTo(channelData, { planeIndex: ch });
         }
         const source = state.audioContextListen.createBufferSource();
         source.buffer = audioBuffer;
