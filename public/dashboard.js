@@ -12,6 +12,8 @@ const state = {
   meter: null,
   synth: null,
   nextStartTime: 0,
+  audioContextListen: null,
+  userTimelines: new Map(),
 };
 
 const SAMPLE_RATE = 24000;
@@ -403,28 +405,47 @@ function stopStreaming() {
 function toggleListen() {
   state.isListening = !state.isListening;
   if (state.isListening) {
+    state.audioContextListen = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SAMPLE_RATE });
+    state.userTimelines.clear();
     el.listenBtn.textContent = 'Leave Listen Channel';
     el.listenStatus.textContent = 'speaker on';
   } else {
+    state.audioContextListen?.close();
+    state.audioContextListen = null;
+    state.userTimelines.clear();
     el.listenBtn.textContent = 'Join Listen Channel';
     el.listenStatus.textContent = 'speaker off';
   }
 }
 
 function playPcm(arrayBuffer) {
-  if (!state.isListening) return;
+  if (!state.isListening || !state.audioContextListen) return;
   const bytes = new Uint8Array(arrayBuffer);
   if (bytes.byteLength <= 4) return;
-  const pcm = new Int16Array(bytes.buffer, bytes.byteOffset + 4, (bytes.byteLength - 4) / 2);
 
-  const audioBuffer = Tone.context.createBuffer(1, pcm.length, 24000);
-  const channel = audioBuffer.getChannelData(0);
-  for (let i = 0; i < pcm.length; i++) channel[i] = pcm[i] / 32768;
+  const headerView = new DataView(arrayBuffer, 0, 4);
+  const userIdHash = headerView.getInt32(0, true);
+  const audioData = arrayBuffer.slice(4);
 
-  const source = Tone.context.createBufferSource();
+  const int16Array = new Int16Array(audioData);
+  const float32Array = new Float32Array(int16Array.length);
+  for (let i = 0; i < int16Array.length; i++) float32Array[i] = int16Array[i] / 32768;
+
+  const audioBuffer = state.audioContextListen.createBuffer(1, float32Array.length, SAMPLE_RATE);
+  const channelData = audioBuffer.getChannelData(0);
+  for (let i = 0; i < float32Array.length; i++) channelData[i] = float32Array[i];
+
+  const source = state.audioContextListen.createBufferSource();
   source.buffer = audioBuffer;
-  source.connect(Tone.context.destination);
-  source.start(Tone.now());
+  source.connect(state.audioContextListen.destination);
+
+  const currentTime = state.audioContextListen.currentTime;
+  let userNextStartTime = state.userTimelines.get(userIdHash) || 0;
+
+  if (userNextStartTime < currentTime) userNextStartTime = currentTime + 0.05;
+  source.start(userNextStartTime);
+  userNextStartTime += audioBuffer.duration;
+  state.userTimelines.set(userIdHash, userNextStartTime);
 }
 
 function updateVisualizer(level) {
