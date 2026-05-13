@@ -175,6 +175,9 @@
         // Optimized settings (1/4 bandwidth compared to 48k Stereo)
         const SAMPLE_RATE = 24000;
         const CHANNELS = 1;
+        const NOISE_GATE_THRESHOLD = 0.01;
+        const NOISE_GATE_HOLD_FRAMES = 3;
+        let noiseGateHold = 0;
 
         function initWebSocket() {
             if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
@@ -258,9 +261,25 @@
             }
         };
 
+        function calculateRms(samples) {
+            let sum = 0;
+            for (let i = 0; i < samples.length; i++) {
+                sum += samples[i] * samples[i];
+            }
+            return Math.sqrt(sum / samples.length);
+        }
+
         async function startStreaming() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                        channelCount: 1,
+                        sampleRate: SAMPLE_RATE,
+                    },
+                });
                 isStreaming = true;
                 toggleBtn.innerText = 'Stop Transmitting';
                 toggleBtn.className = 'btn btn-danger';
@@ -281,9 +300,17 @@
                     if (!isStreaming || socket.readyState !== WebSocket.OPEN) return;
                     
                     const inputData = e.inputBuffer.getChannelData(0);
+                    const rms = calculateRms(inputData);
+                    if (rms >= NOISE_GATE_THRESHOLD) {
+                        noiseGateHold = NOISE_GATE_HOLD_FRAMES;
+                    } else if (noiseGateHold > 0) {
+                        noiseGateHold--;
+                    }
+
                     const pcmData = new Int16Array(inputData.length);
                     for (let i = 0; i < inputData.length; i++) {
-                        pcmData[i] = Math.max(-1, Math.min(1, inputData[i])) * 32767;
+                        const sample = noiseGateHold > 0 ? inputData[i] : 0;
+                        pcmData[i] = Math.max(-1, Math.min(1, sample)) * 32767;
                     }
                     socket.send(pcmData.buffer);
 
@@ -300,6 +327,7 @@
 
         function stopStreaming() {
             isStreaming = false;
+            noiseGateHold = 0;
             if (processor) processor.disconnect();
             if (audioContextTransmit) audioContextTransmit.close();
             toggleBtn.innerText = 'Start Transmitting';
