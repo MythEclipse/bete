@@ -1,10 +1,10 @@
-import type Database from "better-sqlite3";
 import { createChildLogger } from "../logger";
+import type { SqliteDatabase } from "../muxer-queue";
 import type { MessageRecord, AttachmentRecord } from "./types";
 
 const logger = createChildLogger("message-store");
 
-export function insertMessage(db: Database.Database, message: MessageRecord): void {
+export function insertMessage(db: SqliteDatabase, message: MessageRecord): void {
   try {
     const stmt = db.prepare(`
       INSERT INTO messages (
@@ -41,7 +41,7 @@ export function insertMessage(db: Database.Database, message: MessageRecord): vo
 }
 
 export function updateMessageAsEdited(
-  db: Database.Database,
+  db: SqliteDatabase,
   messageId: string,
   editedContent: string,
   editedAt: number,
@@ -65,7 +65,7 @@ export function updateMessageAsEdited(
 }
 
 export function updateMessageAsDeleted(
-  db: Database.Database,
+  db: SqliteDatabase,
   messageId: string,
   deletedAt: number,
 ): void {
@@ -88,7 +88,7 @@ export function updateMessageAsDeleted(
 }
 
 export function getMessagesByChannel(
-  db: Database.Database,
+  db: SqliteDatabase,
   channelId: string,
   limit: number = 50,
   offset: number = 0,
@@ -112,7 +112,7 @@ export function getMessagesByChannel(
   }
 }
 
-export function insertAttachment(db: Database.Database, attachment: AttachmentRecord): void {
+export function insertAttachment(db: SqliteDatabase, attachment: AttachmentRecord): void {
   try {
     const stmt = db.prepare(`
       INSERT INTO attachments (
@@ -149,7 +149,7 @@ export function insertAttachment(db: Database.Database, attachment: AttachmentRe
 }
 
 export function getAttachmentsByChannel(
-  db: Database.Database,
+  db: SqliteDatabase,
   channelId: string,
   limit: number = 50,
   offset: number = 0,
@@ -174,7 +174,7 @@ export function getAttachmentsByChannel(
 }
 
 export function updateAttachmentAsUploaded(
-  db: Database.Database,
+  db: SqliteDatabase,
   attachmentId: string,
   uploadedUrl: string,
   uploadedAt: number,
@@ -198,7 +198,7 @@ export function updateAttachmentAsUploaded(
 }
 
 export function updateAttachmentAsFailedUpload(
-  db: Database.Database,
+  db: SqliteDatabase,
   attachmentId: string,
   error: string,
 ): void {

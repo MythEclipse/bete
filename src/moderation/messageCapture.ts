@@ -1,6 +1,6 @@
 import type { Client, Message, TextChannel, ThreadChannel } from "discord.js-selfbot-v13";
-import type Database from "better-sqlite3";
 import { createChildLogger } from "../logger";
+import type { SqliteDatabase } from "../muxer-queue";
 import { config } from "../config";
 import { insertMessage, insertAttachment } from "./messageStore";
 import { processAttachmentUpload } from "./attachmentUploader";
@@ -9,7 +9,7 @@ import type { MessageRecord, AttachmentRecord } from "./types";
 const logger = createChildLogger("message-capture");
 
 async function captureMessage(
-  db: Database.Database,
+  db: SqliteDatabase,
   message: Message,
   type: "text" | "edited" | "deleted",
 ): Promise<void> {
@@ -101,7 +101,7 @@ async function captureMessage(
   );
 }
 
-export function registerMessageCapture(client: Client, db: Database.Database): void {
+export function registerMessageCapture(client: Client, db: SqliteDatabase): void {
   client.on("messageCreate", async (message) => {
     if (!message.guildId || message.guildId !== config.MONITOR_GUILD_ID) return;
     if (message.author?.bot) return;

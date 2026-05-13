@@ -1,7 +1,7 @@
 import { createChildLogger } from "../logger";
 import { config } from "../config";
 import { retryWithBackoff } from "../retry";
-import type Database from "better-sqlite3";
+import type { SqliteDatabase } from "../muxer-queue";
 import { updateAttachmentAsUploaded, updateAttachmentAsFailedUpload } from "./messageStore";
 
 const logger = createChildLogger("attachment-uploader");
@@ -109,7 +109,7 @@ export async function downloadDiscordAttachment(url: string): Promise<Buffer> {
 }
 
 export async function processAttachmentUpload(
-  db: Database.Database,
+  db: SqliteDatabase,
   attachmentId: string,
   discordUrl: string,
   filename: string,

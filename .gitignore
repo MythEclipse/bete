@@ -2,3 +2,4 @@ node_modules
 recordings
 .env
 dist/
+.muxer-queue.db

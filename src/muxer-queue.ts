@@ -1,8 +1,20 @@
 import path from "node:path";
-import Database from "better-sqlite3";
+import { Database } from "bun:sqlite";
 import { createChildLogger } from "./logger";
 
 const logger = createChildLogger("muxer-queue");
+
+export interface SqliteStatement {
+  run: (...params: unknown[]) => { changes: number };
+  all: (...params: unknown[]) => unknown[];
+  get: (...params: unknown[]) => unknown;
+}
+
+export interface SqliteDatabase {
+  prepare: (sql: string) => SqliteStatement;
+  exec: (sql: string) => void;
+  close: () => void;
+}
 
 export interface MuxerJobData {
   userId: string;
@@ -23,13 +35,14 @@ interface StoredJob {
 }
 
 const dbPath = path.join(process.cwd(), ".muxer-queue.db");
-let db: Database.Database | null = null;
+let db: SqliteDatabase | null = null;
 
-function initializeDatabase(): Database.Database {
-  const database = new Database(dbPath);
-  database.pragma("journal_mode = WAL");
+function initializeDatabase(): SqliteDatabase {
+  const database = new Database(dbPath) as SqliteDatabase;
 
   database.exec(`
+    PRAGMA journal_mode = WAL;
+
     CREATE TABLE IF NOT EXISTS muxer_jobs (
       id TEXT PRIMARY KEY,
       data TEXT NOT NULL,
@@ -43,12 +56,56 @@ function initializeDatabase(): Database.Database {
 
     CREATE INDEX IF NOT EXISTS idx_status ON muxer_jobs(status);
     CREATE INDEX IF NOT EXISTS idx_createdAt ON muxer_jobs(createdAt);
+
+    CREATE TABLE IF NOT EXISTS messages (
+      id TEXT PRIMARY KEY,
+      guild_id TEXT NOT NULL,
+      channel_id TEXT NOT NULL,
+      thread_id TEXT,
+      user_id TEXT NOT NULL,
+      username TEXT NOT NULL,
+      avatar_url TEXT,
+      content TEXT NOT NULL,
+      edited_content TEXT,
+      created_at INTEGER NOT NULL,
+      edited_at INTEGER,
+      deleted_at INTEGER,
+      type TEXT NOT NULL DEFAULT 'text',
+      metadata TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_messages_channel ON messages(channel_id);
+    CREATE INDEX IF NOT EXISTS idx_messages_user ON messages(user_id);
+    CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(thread_id);
+
+    CREATE TABLE IF NOT EXISTS attachments (
+      id TEXT PRIMARY KEY,
+      message_id TEXT NOT NULL,
+      guild_id TEXT NOT NULL,
+      channel_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      filename TEXT NOT NULL,
+      size INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      discord_url TEXT NOT NULL,
+      uploaded_url TEXT,
+      upload_status TEXT NOT NULL DEFAULT 'pending',
+      upload_error TEXT,
+      created_at INTEGER NOT NULL,
+      uploaded_at INTEGER,
+      FOREIGN KEY (message_id) REFERENCES messages(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_attachments_channel ON attachments(channel_id);
+    CREATE INDEX IF NOT EXISTS idx_attachments_message ON attachments(message_id);
+    CREATE INDEX IF NOT EXISTS idx_attachments_status ON attachments(upload_status);
   `);
 
   return database;
 }
 
-function getDatabase(): Database.Database {
+function getDatabase(): SqliteDatabase {
   if (!db) {
     db = initializeDatabase();
   }
