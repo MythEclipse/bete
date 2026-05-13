@@ -110,7 +110,15 @@
       el.channelSelect.value = state.selectedVoiceChannel;
       el.channelFilter.value = state.selectedTextChannel;
       applyActiveTab(state.activeTab);
-      if (textChanged || state.activeTab === 'text') await fetchText().catch((error) => showError(error.message));
+      if (textChanged || state.activeTab === 'text') {
+        if (state.selectedTextChannel && state.selectedGuild) {
+          await apiRequest('/api/backlog-sync', {
+            method: 'POST',
+            body: JSON.stringify({ guildId: state.selectedGuild, channelId: state.selectedTextChannel }),
+          }).catch((error) => logger.warn('Backlog sync failed:', error.message));
+        }
+        await fetchText().catch((error) => showError(error.message));
+      }
       await reconcileListenState();
       await reconcileStreamingState();
       state.applyingServerState = false;
