@@ -178,7 +178,8 @@
 
         function initWebSocket() {
             if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
-            socket = new WebSocket(`ws://${window.location.hostname}:3001`);
+            const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+            socket = new WebSocket(`${wsProtocol}//${window.location.host}/ws`);
             socket.binaryType = 'arraybuffer';
 
             socket.onopen = () => {

@@ -1,17 +1,34 @@
-import { describe, expect, it } from "vitest";
-import { parseBoolean, parsePositiveNumber } from "../src/config";
+import process from "node:process";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-describe("config parsers", () => {
-  it("parses boolean values", () => {
-    expect(parseBoolean("true", false)).toBe(true);
-    expect(parseBoolean("false", true)).toBe(false);
-    expect(parseBoolean(undefined, true)).toBe(true);
-  });
+const originalEnv = process.env;
 
-  it("parses positive numbers", () => {
-    expect(parsePositiveNumber("5000", 0)).toBe(5000);
-    expect(parsePositiveNumber("0", 123)).toBe(123);
-    expect(parsePositiveNumber("bad", 123)).toBe(123);
-    expect(parsePositiveNumber(undefined, 123)).toBe(123);
+afterEach(() => {
+  process.env = originalEnv;
+  vi.resetModules();
+});
+
+describe("loadConfig", () => {
+  it("loads required values and coerces optional values", async () => {
+    process.env = {
+      ...originalEnv,
+      DISCORD_TOKEN: "token",
+      VOICE_CHANNEL_ID: "voice-channel",
+      GUILD_ID: "guild",
+      VERBOSE: "true",
+      WEBSERVER_PORT: "4000",
+      NODE_ENV: "test",
+    };
+
+    const { loadConfig } = await import("../src/config");
+    const config = loadConfig(process.env);
+
+    expect(config.DISCORD_TOKEN).toBe("token");
+    expect(config.VOICE_CHANNEL_ID).toBe("voice-channel");
+    expect(config.GUILD_ID).toBe("guild");
+    expect(config.VERBOSE).toBe(true);
+    expect(config.WEBSERVER_PORT).toBe(4000);
+    expect(config.RECORDINGS_DIR).toBe("./recordings");
+    expect(config.NODE_ENV).toBe("test");
   });
 });

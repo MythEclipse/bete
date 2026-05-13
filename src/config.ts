@@ -24,7 +24,9 @@ const configSchema = z.object({
   AUDIO_CHANNELS: z.coerce.number().positive().default(2),
   AVATAR_SIZE: z.coerce.number().positive().default(64),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
-  NODE_ENV: z.enum(["development", "production"]).default("development"),
+  NODE_ENV: z
+    .enum(["development", "production", "test"])
+    .default("development"),
 });
 
 export type AppConfig = z.infer<typeof configSchema>;

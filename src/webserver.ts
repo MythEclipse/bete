@@ -46,9 +46,9 @@ export function startWebserver(port: number = 3000) {
   const app = express();
   const server = http.createServer(app);
 
-  const wsPort = port + 1;
-  const wss = new WebSocketServer({ port: wsPort, host: "0.0.0.0" });
-  wsLogger.info({ wsPort }, "WebSocket server listening");
+  const wsPath = "/ws";
+  const wss = new WebSocketServer({ server, path: wsPath });
+  wsLogger.info({ port, wsPath }, "WebSocket server listening");
 
   // Security headers
   app.use(helmet());
@@ -199,7 +199,7 @@ export function startWebserver(port: number = 3000) {
   }, 20);
 
   wss.on("connection", (ws) => {
-    wsLogger.info({ wsPort }, "New WebSocket connection");
+    wsLogger.info({ port, wsPath }, "New WebSocket connection");
     wsClients.add(ws);
 
     ws.send(
