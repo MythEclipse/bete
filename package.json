@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "bun --watch src/index.ts",
     "start": "bun src/index.ts",
+    "build": "tsc --outDir dist",
     "typecheck": "tsc --noEmit",
     "lint": "biome check --diagnostic-level=error .",
     "format": "biome format --write .",
