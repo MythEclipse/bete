@@ -15,6 +15,7 @@ const state = {
 };
 
 const SAMPLE_RATE = 24000;
+const CHANNELS = 1;
 const NOISE_GATE_THRESHOLD = 0.01;
 
 const el = {
@@ -419,8 +420,6 @@ function toggleListen() {
 
 function playPcm(arrayBuffer) {
   if (!state.isListening || !state.audioContextListen) return;
-  const bytes = new Uint8Array(arrayBuffer);
-  if (bytes.byteLength <= 4) return;
 
   const headerView = new DataView(arrayBuffer, 0, 4);
   const userIdHash = headerView.getInt32(0, true);
@@ -430,9 +429,9 @@ function playPcm(arrayBuffer) {
   const float32Array = new Float32Array(int16Array.length);
   for (let i = 0; i < int16Array.length; i++) float32Array[i] = int16Array[i] / 32768;
 
-  const audioBuffer = state.audioContextListen.createBuffer(1, float32Array.length, SAMPLE_RATE);
-  const channelData = audioBuffer.getChannelData(0);
-  for (let i = 0; i < float32Array.length; i++) channelData[i] = float32Array[i];
+  const audioBuffer = state.audioContextListen.createBuffer(CHANNELS, float32Array.length / CHANNELS, SAMPLE_RATE);
+  const nowBuffering = audioBuffer.getChannelData(0);
+  for (let i = 0; i < audioBuffer.length; i++) nowBuffering[i] = float32Array[i];
 
   const source = state.audioContextListen.createBufferSource();
   source.buffer = audioBuffer;
