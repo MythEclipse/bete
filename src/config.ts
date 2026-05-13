@@ -27,6 +27,11 @@ const configSchema = z.object({
   NODE_ENV: z
     .enum(["development", "production", "test"])
     .default("development"),
+  MONITOR_GUILD_ID: z.string().min(1).optional(),
+  PICSER_UPLOAD_URL: z.string().url().default("https://picser.asepharyana.tech/api/upload"),
+  ATTACHMENT_UPLOAD_TIMEOUT_MS: z.coerce.number().positive().default(30000),
+  ATTACHMENT_MAX_SIZE_MB: z.coerce.number().positive().default(100),
+  ATTACHMENT_RETRY_ATTEMPTS: z.coerce.number().positive().default(3),
 });
 
 export type AppConfig = z.infer<typeof configSchema>;
