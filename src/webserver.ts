@@ -3,7 +3,6 @@ import express from "express";
 import helmet from "helmet";
 import http from "http";
 import path from "path";
-import pinoHttp from "pino-http";
 import * as prism from "prism-media";
 import { WebSocketServer } from "ws";
 import { AppError } from "./errors";
@@ -11,7 +10,7 @@ import { createChildLogger, logger } from "./logger";
 import { getMetrics, uptimeGauge } from "./metrics";
 import { discordPlayer } from "./player";
 import type { VoiceController } from "./voiceController";
-import { getDatabase } from "./muxer-queue";
+import { getDatabase, getPersistedValue, setPersistedValue } from "./muxer-queue";
 import { getMessagesByChannel, getAttachmentsByChannel } from "./moderation/messageStore";
 
 const wsLogger = createChildLogger("webserver");
@@ -31,7 +30,7 @@ interface SharedUIState {
   isStreaming: boolean;
 }
 
-const sharedUIState: SharedUIState = {
+const defaultSharedUIState: SharedUIState = {
   selectedGuild: "",
   selectedVoiceChannel: "",
   selectedTextChannel: "",
@@ -39,6 +38,8 @@ const sharedUIState: SharedUIState = {
   isListening: false,
   isStreaming: false,
 };
+
+const sharedUIState: SharedUIState = getPersistedValue("web-ui-state", defaultSharedUIState);
 
 function getSharedUIState(): SharedUIState {
   return { ...sharedUIState };
@@ -73,6 +74,7 @@ function patchSharedUIState(patch: Partial<SharedUIState>) {
   if (typeof patch.isStreaming === "boolean") {
     sharedUIState.isStreaming = patch.isStreaming;
   }
+  setPersistedValue("web-ui-state", sharedUIState);
   broadcastUIState();
   return getSharedUIState();
 }
@@ -121,8 +123,21 @@ export function startWebserver(
     }),
   );
 
-  // HTTP request logging
-  app.use(pinoHttp({ logger }));
+  app.use((req, res, next) => {
+    if (req.path.startsWith("/api/")) {
+      res.set("Cache-Control", "no-store");
+    }
+    res.on("finish", () => {
+      if (req.originalUrl.startsWith("/.well-known/appspecific/")) return;
+      if (res.statusCode >= 400) {
+        logger.error(
+          { method: req.method, url: req.originalUrl, statusCode: res.statusCode },
+          "HTTP request failed",
+        );
+      }
+    });
+    next();
+  });
   app.use(express.json());
 
   app.use(express.static(path.join(__dirname, "../public")));

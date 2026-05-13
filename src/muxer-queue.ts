@@ -108,6 +108,12 @@ function initializeDatabase(): SqliteDatabase {
     CREATE INDEX IF NOT EXISTS idx_attachments_channel ON attachments(channel_id);
     CREATE INDEX IF NOT EXISTS idx_attachments_message ON attachments(message_id);
     CREATE INDEX IF NOT EXISTS idx_attachments_status ON attachments(upload_status);
+
+    CREATE TABLE IF NOT EXISTS ui_state (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
   `);
 
   const migrations = [
@@ -140,6 +146,28 @@ function getDatabase(): SqliteDatabase {
 }
 
 export { getDatabase };
+
+export function getPersistedValue<T>(key: string, fallback: T): T {
+  const row = getDatabase()
+    .prepare("SELECT value FROM ui_state WHERE key = ?")
+    .get(key) as { value: string } | undefined;
+  if (!row) return fallback;
+  try {
+    return JSON.parse(row.value) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+export function setPersistedValue(key: string, value: unknown): void {
+  getDatabase()
+    .prepare(`
+      INSERT INTO ui_state (key, value, updated_at)
+      VALUES (?, ?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+    `)
+    .run(key, JSON.stringify(value), Date.now());
+}
 
 export async function enqueueMuxerJob(data: MuxerJobData): Promise<string> {
   try {

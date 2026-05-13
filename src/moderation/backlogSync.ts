@@ -90,14 +90,27 @@ export async function syncBacklogMessages(
   }
 
   const cutoffTime = Date.now() - config.BACKLOG_SYNC_HOURS * 60 * 60 * 1000;
-  await guild.channels.fetch().catch(() => null);
+  logger.info(
+    { guildId: guild.id, hours: config.BACKLOG_SYNC_HOURS },
+    "Starting message backlog sync",
+  );
 
+  logger.info({ guildId: guild.id }, "Fetching guild channels for backlog sync");
+  await guild.channels.fetch().catch((error) => {
+    logger.warn(
+      { guildId: guild.id, error: error instanceof Error ? error.message : String(error) },
+      "Failed to fetch guild channels before backlog sync",
+    );
+    return null;
+  });
+
+  logger.info({ guildId: guild.id }, "Collecting watchable channels for backlog sync");
   const channels = await collectWatchableChannels(guild);
 
   let total = 0;
   logger.info(
     { guildId: guild.id, channels: channels.length, hours: config.BACKLOG_SYNC_HOURS },
-    "Starting message backlog sync",
+    "Watchable channels collected for backlog sync",
   );
 
   for (const channel of channels) {
