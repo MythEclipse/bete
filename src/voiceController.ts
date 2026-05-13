@@ -25,6 +25,12 @@ export interface VoiceChannelSummary {
   name: string;
 }
 
+export interface ChannelSummary {
+  id: string;
+  name: string;
+  type: string;
+}
+
 export class VoiceController {
   private activeGuildId: string | null = null;
   private activeChannelId: string | null = null;
@@ -60,6 +66,27 @@ export class VoiceController {
     return guild.channels.cache
       .filter((channel) => channel.type === "GUILD_VOICE")
       .map((channel) => ({ id: channel.id, name: channel.name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  async listWatchableChannels(guildId: string): Promise<ChannelSummary[]> {
+    const guild = this.getGuild(guildId);
+    await guild.channels.fetch().catch(() => null);
+
+    return guild.channels.cache
+      .filter((channel) =>
+        ["GUILD_TEXT", "GUILD_PUBLIC_THREAD", "GUILD_PRIVATE_THREAD"].includes(
+          channel.type,
+        ),
+      )
+      .map((channel) => {
+        const parentName = channel.isThread?.() ? channel.parent?.name : null;
+        return {
+          id: channel.id,
+          name: parentName ? `${parentName} / ${channel.name}` : channel.name,
+          type: channel.type,
+        };
+      })
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 

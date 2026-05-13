@@ -96,12 +96,12 @@ export function getMessagesByChannel(
   try {
     const stmt = db.prepare(`
       SELECT * FROM messages
-      WHERE channel_id = ?
+      WHERE channel_id = ? OR thread_id = ?
       ORDER BY created_at DESC
       LIMIT ? OFFSET ?
     `);
 
-    const rows = stmt.all(channelId, limit, offset) as MessageRecord[];
+    const rows = stmt.all(channelId, channelId, limit, offset) as MessageRecord[];
     return rows;
   } catch (error) {
     logger.error(
@@ -116,9 +116,9 @@ export function insertAttachment(db: SqliteDatabase, attachment: AttachmentRecor
   try {
     const stmt = db.prepare(`
       INSERT INTO attachments (
-        id, message_id, guild_id, channel_id, user_id, filename, size, type,
+        id, message_id, guild_id, channel_id, thread_id, user_id, filename, size, type,
         discord_url, uploaded_url, upload_status, upload_error, created_at, uploaded_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -126,6 +126,7 @@ export function insertAttachment(db: SqliteDatabase, attachment: AttachmentRecor
       attachment.message_id,
       attachment.guild_id,
       attachment.channel_id,
+      attachment.thread_id,
       attachment.user_id,
       attachment.filename,
       attachment.size,
@@ -157,12 +158,12 @@ export function getAttachmentsByChannel(
   try {
     const stmt = db.prepare(`
       SELECT * FROM attachments
-      WHERE channel_id = ?
+      WHERE channel_id = ? OR thread_id = ?
       ORDER BY created_at DESC
       LIMIT ? OFFSET ?
     `);
 
-    const rows = stmt.all(channelId, limit, offset) as AttachmentRecord[];
+    const rows = stmt.all(channelId, channelId, limit, offset) as AttachmentRecord[];
     return rows;
   } catch (error) {
     logger.error(

@@ -20,6 +20,7 @@ export interface AttachmentRecord {
   message_id: string;
   guild_id: string;
   channel_id: string;
+  thread_id: string | null;
   user_id: string;
   filename: string;
   size: number;

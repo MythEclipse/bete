@@ -84,6 +84,7 @@ function initializeDatabase(): SqliteDatabase {
       message_id TEXT NOT NULL,
       guild_id TEXT NOT NULL,
       channel_id TEXT NOT NULL,
+      thread_id TEXT,
       user_id TEXT NOT NULL,
       filename TEXT NOT NULL,
       size INTEGER NOT NULL,
@@ -101,6 +102,12 @@ function initializeDatabase(): SqliteDatabase {
     CREATE INDEX IF NOT EXISTS idx_attachments_message ON attachments(message_id);
     CREATE INDEX IF NOT EXISTS idx_attachments_status ON attachments(upload_status);
   `);
+
+  try {
+    database.exec("ALTER TABLE attachments ADD COLUMN thread_id TEXT");
+  } catch {
+    // Column already exists on databases initialized after the moderation schema was added.
+  }
 
   return database;
 }

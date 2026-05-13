@@ -106,6 +106,14 @@ export function startWebserver(
     }
   });
 
+  app.get("/api/guilds/:guildId/channels", async (req, res, next) => {
+    try {
+      res.json(await voiceController.listWatchableChannels(req.params.guildId));
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.post("/api/connect", async (req, res, next) => {
     try {
       const { guildId, channelId } = req.body as {

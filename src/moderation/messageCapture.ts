@@ -8,29 +8,73 @@ import type { MessageRecord, AttachmentRecord } from "./types";
 
 const logger = createChildLogger("message-capture");
 
+function getMessageLocation(message: Message): {
+  channelId: string;
+  threadId: string | null;
+  threadName: string | null;
+} {
+  const channel = message.channel as TextChannel | ThreadChannel;
+  if (!channel.isThread?.()) {
+    return { channelId: message.channelId, threadId: null, threadName: null };
+  }
+
+  return {
+    channelId: channel.parentId ?? message.channelId,
+    threadId: channel.id,
+    threadName: channel.name,
+  };
+}
+
+function getStickerMetadata(message: Message): Array<{
+  id: string;
+  name: string;
+  url: string;
+}> {
+  return Array.from(message.stickers.values()).map((sticker) => ({
+    id: sticker.id,
+    name: sticker.name,
+    url: sticker.url,
+  }));
+}
+
+function getDisplayContent(message: Message): string {
+  if (message.content.trim().length > 0) return message.content;
+
+  const stickers = getStickerMetadata(message);
+  if (stickers.length > 0) {
+    return stickers.map((sticker) => `[Sticker: ${sticker.name}]`).join(" ");
+  }
+
+  return "";
+}
+
 async function captureMessage(
   db: SqliteDatabase,
   message: Message,
   type: "text" | "edited" | "deleted",
 ): Promise<void> {
-  const channel = message.channel as TextChannel | ThreadChannel;
-  const threadId = channel.isThread?.() ? channel.id : null;
+  const location = getMessageLocation(message);
+  const stickers = getStickerMetadata(message);
+  const metadata = {
+    stickers,
+    threadName: location.threadName,
+  };
 
   const messageRecord: MessageRecord = {
     id: message.id,
     guild_id: message.guildId!,
-    channel_id: message.channelId,
-    thread_id: threadId,
+    channel_id: location.channelId,
+    thread_id: location.threadId,
     user_id: message.author!.id,
     username: message.author!.username,
     avatar_url: message.author!.avatarURL() || null,
-    content: message.content,
+    content: getDisplayContent(message),
     edited_content: null,
     created_at: message.createdTimestamp,
     edited_at: null,
     deleted_at: null,
     type,
-    metadata: null,
+    metadata: JSON.stringify(metadata),
   };
 
   insertMessage(db, messageRecord);
@@ -38,13 +82,7 @@ async function captureMessage(
   const broadcaster = globalThis as any;
   if (broadcaster.broadcastMessageCreated) {
     broadcaster.broadcastMessageCreated({
-      id: message.id,
-      channel_id: message.channelId,
-      user_id: message.author!.id,
-      username: message.author!.username,
-      avatar_url: message.author!.avatarURL() || null,
-      content: message.content,
-      created_at: message.createdTimestamp,
+      ...messageRecord,
       type: "text",
     });
   }
@@ -55,7 +93,8 @@ async function captureMessage(
         id: attachment.id,
         message_id: message.id,
         guild_id: message.guildId!,
-        channel_id: message.channelId,
+        channel_id: location.channelId,
+        thread_id: location.threadId,
         user_id: message.author!.id,
         filename: attachment.name || "unknown",
         size: attachment.size,
@@ -77,7 +116,7 @@ async function captureMessage(
               id: attachment.id,
               message_id: message.id,
               filename: attachment.name || "unknown",
-              channel_id: message.channelId,
+              channel_id: location.channelId,
               created_at: Date.now(),
             });
           }
@@ -129,13 +168,13 @@ export function registerMessageCapture(client: Client, db: SqliteDatabase): void
 
       if (existing) {
         const editedAt = Date.now();
-        updateMessageAsEdited(db, newMessage.id, newMessage.content || "", editedAt);
+        updateMessageAsEdited(db, newMessage.id, getDisplayContent(newMessage as Message), editedAt);
 
         const broadcaster = globalThis as any;
         if (broadcaster.broadcastMessageUpdated) {
           broadcaster.broadcastMessageUpdated({
             id: newMessage.id,
-            edited_content: newMessage.content || "",
+            edited_content: getDisplayContent(newMessage as Message),
             edited_at: editedAt,
           });
         }
