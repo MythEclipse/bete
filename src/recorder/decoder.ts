@@ -1,5 +1,33 @@
+import { createRequire } from "node:module";
 import prism from "prism-media";
 import { config } from "../config";
+
+const require = createRequire(import.meta.url);
+
+interface OpusDecoderRuntime {
+  isBun: boolean;
+  canLoadNativeOpus: boolean;
+}
+
+export function shouldEnableDefaultOpusDecoder(
+  runtime: OpusDecoderRuntime,
+): boolean {
+  return !runtime.isBun || runtime.canLoadNativeOpus;
+}
+
+function canLoadNativeOpus(): boolean {
+  try {
+    require("@discordjs/opus");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const defaultDecoderEnabled = shouldEnableDefaultOpusDecoder({
+  isBun: Boolean(process.versions.bun),
+  canLoadNativeOpus: canLoadNativeOpus(),
+});
 
 export interface OpusDecoderOptions {
   cooldownMs: number;
@@ -23,8 +51,14 @@ export class OpusDecoder {
     this.onData = options.onData;
     this.createDecoderFn =
       options.createDecoder ??
-      (() =>
-        new prism.opus.Decoder({
+      (() => {
+        if (!defaultDecoderEnabled) {
+          throw new Error(
+            "Native @discordjs/opus is unavailable under Bun; web PCM decode disabled to avoid opusscript aborts",
+          );
+        }
+
+        return new prism.opus.Decoder({
           frameSize: config.OPUS_FRAME_SIZE,
           channels: config.AUDIO_CHANNELS as 1 | 2,
           rate: config.AUDIO_SAMPLE_RATE as
@@ -33,7 +67,8 @@ export class OpusDecoder {
             | 16000
             | 24000
             | 48000,
-        }));
+        });
+      });
   }
 
   rotateIfNeeded(): void {

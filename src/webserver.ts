@@ -57,8 +57,12 @@ export function startWebserver(
   const wss = new WebSocketServer({ server, path: wsPath });
   wsLogger.info({ port, wsPath }, "WebSocket server listening");
 
-  // Security headers
-  app.use(helmet());
+  // Security headers. CSP disabled because the current static UI uses inline scripts/styles.
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+    }),
+  );
 
   // HTTP request logging
   app.use(pinoHttp({ logger }));
