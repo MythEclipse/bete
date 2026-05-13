@@ -12,6 +12,7 @@ import { discordPlayer } from "./player";
 import type { VoiceController } from "./voiceController";
 import { getDatabase, getPersistedValue, setPersistedValue } from "./muxer-queue";
 import { getMessagesByChannel, getAttachmentsByChannel } from "./moderation/messageStore";
+import { syncSelectedChannelBacklog } from "./moderation/backlogSync";
 
 const wsLogger = createChildLogger("webserver");
 
@@ -272,6 +273,32 @@ export function startWebserver(
           count: messages.length,
         });
       }
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/backlog-sync", async (req, res, next) => {
+    try {
+      const { guildId, channelId } = req.body as {
+        guildId?: string;
+        channelId?: string;
+      };
+
+      if (!guildId || !channelId) {
+        throw new AppError(
+          "guildId and channelId are required",
+          "MISSING_BACKLOG_PARAMS",
+          400,
+        );
+      }
+
+      const count = await syncSelectedChannelBacklog(_client, getDatabase(), guildId, channelId);
+      res.json({
+        success: true,
+        channelId,
+        messagesSync: count,
+      });
     } catch (error) {
       next(error);
     }
