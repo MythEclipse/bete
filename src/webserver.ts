@@ -22,6 +22,61 @@ const activeUsers = new Map<
 >();
 let wsClients = new Set<any>();
 
+interface SharedUIState {
+  selectedGuild: string;
+  selectedVoiceChannel: string;
+  selectedTextChannel: string;
+  activeTab: "voice" | "text";
+  isListening: boolean;
+  isStreaming: boolean;
+}
+
+const sharedUIState: SharedUIState = {
+  selectedGuild: "",
+  selectedVoiceChannel: "",
+  selectedTextChannel: "",
+  activeTab: "voice",
+  isListening: false,
+  isStreaming: false,
+};
+
+function getSharedUIState(): SharedUIState {
+  return { ...sharedUIState };
+}
+
+function broadcastUIState() {
+  const payload = JSON.stringify({
+    type: "ui_state",
+    state: getSharedUIState(),
+  });
+  wsClients.forEach((client) => {
+    if (client.readyState === 1) client.send(payload);
+  });
+}
+
+function patchSharedUIState(patch: Partial<SharedUIState>) {
+  if (typeof patch.selectedGuild === "string") {
+    sharedUIState.selectedGuild = patch.selectedGuild;
+  }
+  if (typeof patch.selectedVoiceChannel === "string") {
+    sharedUIState.selectedVoiceChannel = patch.selectedVoiceChannel;
+  }
+  if (typeof patch.selectedTextChannel === "string") {
+    sharedUIState.selectedTextChannel = patch.selectedTextChannel;
+  }
+  if (patch.activeTab === "voice" || patch.activeTab === "text") {
+    sharedUIState.activeTab = patch.activeTab;
+  }
+  if (typeof patch.isListening === "boolean") {
+    sharedUIState.isListening = patch.isListening;
+  }
+  if (typeof patch.isStreaming === "boolean") {
+    sharedUIState.isStreaming = patch.isStreaming;
+  }
+  broadcastUIState();
+  return getSharedUIState();
+}
+
 // Upsample 24kHz mono s16le → 48kHz stereo s16le (pure JS)
 function upsample(mono24k: Buffer): Buffer {
   const out = Buffer.alloc(mono24k.length * 4);
@@ -98,6 +153,14 @@ export function startWebserver(
     res.json(voiceController.getStatus());
   });
 
+  app.get("/api/ui-state", (_req, res) => {
+    res.json(getSharedUIState());
+  });
+
+  app.post("/api/ui-state", (req, res) => {
+    res.json(patchSharedUIState(req.body as Partial<SharedUIState>));
+  });
+
   app.get("/api/guilds", (_req, res) => {
     res.json(voiceController.listGuilds());
   });
@@ -141,7 +204,12 @@ export function startWebserver(
         );
       }
 
-      res.json(await voiceController.connect(guildId, channelId));
+      const status = await voiceController.connect(guildId, channelId);
+      patchSharedUIState({
+        selectedGuild: guildId,
+        selectedVoiceChannel: channelId,
+      });
+      res.json(status);
     } catch (error) {
       next(error);
     }
@@ -355,6 +423,7 @@ export function startWebserver(
         })),
       }),
     );
+    ws.send(JSON.stringify({ type: "ui_state", state: getSharedUIState() }));
 
     ws.on("message", (data: any) => {
       if (!Buffer.isBuffer(data)) return;
