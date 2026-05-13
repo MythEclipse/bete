@@ -10,8 +10,9 @@ const queuedMessageIds = new Set<string>();
 let isProcessing = false;
 let activeRequests = 0;
 const MAX_CONCURRENT_REQUESTS = 1;
-const MAX_AI_REQUEST_TOKENS = 80_000;
-const AI_PROMPT_TOKEN_RESERVE = 6_000;
+const MAX_AI_REQUEST_TOKENS = 12_000;
+const AI_PROMPT_TOKEN_RESERVE = 3_000;
+const MAX_AI_BATCH_MESSAGES = 80;
 
 interface ChatCompletionResponse {
   choices?: Array<{
@@ -238,6 +239,17 @@ async function analyzeAndStoreBatch(db: SqliteDatabase, messages: MessageRecord[
       if (row) (globalThis as any).broadcastMessageAnalyzed?.(row);
     }
   } catch (error) {
+    if (analyzableMessages.length > 1) {
+      const midpoint = Math.ceil(analyzableMessages.length / 2);
+      logger.warn(
+        { count: analyzableMessages.length, nextBatchSizes: [midpoint, analyzableMessages.length - midpoint], error },
+        "AI batch failed, splitting into smaller batches",
+      );
+      await analyzeAndStoreBatch(db, analyzableMessages.slice(0, midpoint));
+      await analyzeAndStoreBatch(db, analyzableMessages.slice(midpoint));
+      return;
+    }
+
     const errorMsg = error instanceof Error ? error.message : String(error);
     for (const message of analyzableMessages) {
       const row = updateMessageAIAnalysis(db, message.id, {
@@ -276,7 +288,7 @@ async function drainQueue(db: SqliteDatabase): Promise<void> {
         if (!message) continue;
 
         const messageTokens = estimateMessageTokens(message);
-        if (batch.length > 0 && tokenEstimate + messageTokens > batchTokenLimit) {
+        if (batch.length > 0 && (batch.length >= MAX_AI_BATCH_MESSAGES || tokenEstimate + messageTokens > batchTokenLimit)) {
           queuedMessageIds.add(messageId);
           break;
         }
