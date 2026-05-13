@@ -17,23 +17,50 @@ function isWatchableChannel(channel: { type?: string; messages?: unknown }): boo
 
 async function collectWatchableChannels(guild: any): Promise<any[]> {
   const channels: any[] = [];
+
+  // Fast pass: collect text channels from cache only
   for (const channel of guild.channels.cache.values()) {
     if (isWatchableChannel(channel)) {
       channels.push(channel);
     }
-
-    if (channel.threads?.fetch) {
-      for (const archived of [false, true]) {
-        const fetched = await channel.threads
-          .fetch({ archived, limit: 100 })
-          .catch(() => null);
-        if (!fetched?.threads) continue;
-        for (const thread of fetched.threads.values()) {
-          if (isWatchableChannel(thread)) channels.push(thread);
-        }
-      }
-    }
   }
+
+  // Slow pass: discover threads with timeout per channel (non-blocking to message sync)
+  const threadPromises: Promise<void>[] = [];
+  for (const channel of guild.channels.cache.values()) {
+    if (!channel.threads?.fetch) continue;
+
+    threadPromises.push(
+      (async () => {
+        for (const archived of [false, true]) {
+          try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 5000);
+            const fetched = await Promise.race([
+              channel.threads.fetch({ archived, limit: 100 }),
+              new Promise((_, reject) => controller.signal.addEventListener('abort', () => reject(new Error('timeout')))),
+            ]).catch(() => null);
+            clearTimeout(timeout);
+
+            if (!fetched?.threads) continue;
+            for (const thread of fetched.threads.values()) {
+              if (isWatchableChannel(thread)) channels.push(thread);
+            }
+          } catch {
+            // Skip this channel's threads on timeout/error
+          }
+        }
+      })()
+    );
+  }
+
+  // Wait for all thread discoveries with overall timeout
+  await Promise.race([
+    Promise.all(threadPromises),
+    new Promise((resolve) => setTimeout(resolve, 30000)),
+  ]).catch(() => {
+    logger.warn("Thread discovery timeout, proceeding with cached channels");
+  });
 
   return Array.from(new Map(channels.map((channel) => [channel.id, channel])).values());
 }

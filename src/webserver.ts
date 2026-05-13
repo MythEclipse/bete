@@ -129,6 +129,7 @@ export function startWebserver(
     }
     res.on("finish", () => {
       if (req.originalUrl.startsWith("/.well-known/appspecific/")) return;
+      if (req.originalUrl === "/favicon.ico") return;
       if (res.statusCode >= 400) {
         logger.error(
           { method: req.method, url: req.originalUrl, statusCode: res.statusCode },
