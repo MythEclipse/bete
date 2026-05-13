@@ -42,6 +42,7 @@ export interface SegmentMetadata extends UserMetadata {
 
 export interface PcmBroadcaster {
   broadcastPcmToWeb?: (chunk: Buffer, userId: string) => void;
+  broadcastOpusToWeb?: (chunk: Buffer, userId: string) => void;
   updateActiveUser?: (
     userId: string,
     data: { username: string; avatar: string; speaking: boolean },

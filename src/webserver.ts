@@ -10,6 +10,7 @@ import { AppError } from "./errors";
 import { createChildLogger, logger } from "./logger";
 import { getMetrics, uptimeGauge } from "./metrics";
 import { discordPlayer } from "./player";
+import { renderDashboardPage } from "./web/dashboardPage";
 import type { VoiceController } from "./voiceController";
 import { getDatabase } from "./muxer-queue";
 import { getMessagesByChannel, getAttachmentsByChannel } from "./moderation/messageStore";
@@ -69,6 +70,39 @@ export function startWebserver(
   // HTTP request logging
   app.use(pinoHttp({ logger }));
   app.use(express.json());
+
+  app.get("/", async (req, res, next) => {
+    try {
+      const guilds = voiceController.listGuilds();
+      const selectedGuildId =
+        typeof req.query.guild === "string" ? req.query.guild : guilds[0]?.id || "";
+      const selectedChannelId =
+        typeof req.query.channel === "string" ? req.query.channel : "";
+      const [voiceChannels, watchChannels] = selectedGuildId
+        ? await Promise.all([
+            voiceController.listVoiceChannels(selectedGuildId),
+            voiceController.listWatchableChannels(selectedGuildId),
+          ])
+        : [[], []];
+      const messages = selectedChannelId
+        ? getMessagesByChannel(getDatabase(), selectedChannelId, 80, 0)
+        : [];
+
+      res.type("html").send(
+        renderDashboardPage({
+          guilds,
+          voiceChannels,
+          watchChannels,
+          selectedGuildId,
+          selectedChannelId,
+          messages,
+          status: voiceController.getStatus(),
+        }),
+      );
+    } catch (error) {
+      next(error);
+    }
+  });
 
   app.use(express.static(path.join(__dirname, "../public")));
 
@@ -198,6 +232,22 @@ export function startWebserver(
     }
     const header = Buffer.alloc(4);
     header.writeInt32LE(hash, 0);
+    const packet = Buffer.concat([header, chunk]);
+    wsClients.forEach((client) => {
+      if (client.readyState === 1) client.send(packet);
+    });
+  };
+
+  // Inbound: Discord Opus → tagged chunks → browser (WebCodecs decode)
+  (global as any).broadcastOpusToWeb = (chunk: Buffer, userId: string) => {
+    let hash = 0;
+    for (let i = 0; i < userId.length; i++) {
+      hash = (hash << 5) - hash + userId.charCodeAt(i);
+      hash |= 0;
+    }
+    const header = Buffer.alloc(5);
+    header.writeUInt8(1, 0); // mode: 1 = Opus
+    header.writeInt32LE(hash, 1);
     const packet = Buffer.concat([header, chunk]);
     wsClients.forEach((client) => {
       if (client.readyState === 1) client.send(packet);

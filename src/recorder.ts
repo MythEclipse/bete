@@ -176,6 +176,7 @@ export async function startRecording(
         onPacket: (chunk) => {
           if (chunk.length < 8) return;
           segmentManager.rotateIfNeeded(oggPacketStream);
+          broadcaster.broadcastOpusToWeb?.(chunk, userId);
           if (!broadcaster.broadcastPcmToWeb) return;
           decoder.rotateIfNeeded();
           decoder.write(chunk);
