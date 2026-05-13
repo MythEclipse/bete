@@ -1,3 +1,4 @@
+import type { Client } from "discord.js-selfbot-v13";
 import express from "express";
 import helmet from "helmet";
 import http from "http";
@@ -5,9 +6,11 @@ import path from "path";
 import pinoHttp from "pino-http";
 import prism from "prism-media";
 import { WebSocketServer } from "ws";
+import { AppError } from "./errors";
 import { createChildLogger, logger } from "./logger";
 import { getMetrics, uptimeGauge } from "./metrics";
 import { discordPlayer } from "./player";
+import type { VoiceController } from "./voiceController";
 
 const wsLogger = createChildLogger("webserver");
 
@@ -42,7 +45,11 @@ function rmsDb(pcm: Buffer): number {
   return 20 * Math.log10(Math.max(rms, 1e-10));
 }
 
-export function startWebserver(port: number = 3000) {
+export function startWebserver(
+  port: number = 3000,
+  _client: Client,
+  voiceController: VoiceController,
+) {
   const app = express();
   const server = http.createServer(app);
 
@@ -55,6 +62,7 @@ export function startWebserver(port: number = 3000) {
 
   // HTTP request logging
   app.use(pinoHttp({ logger }));
+  app.use(express.json());
 
   app.use(express.static(path.join(__dirname, "../public")));
 
@@ -74,6 +82,51 @@ export function startWebserver(port: number = 3000) {
     res.set("Content-Type", "text/plain");
     uptimeGauge.set(process.uptime());
     res.send(await getMetrics());
+  });
+
+  app.get("/api/status", (_req, res) => {
+    res.json(voiceController.getStatus());
+  });
+
+  app.get("/api/guilds", (_req, res) => {
+    res.json(voiceController.listGuilds());
+  });
+
+  app.get("/api/guilds/:guildId/voice-channels", async (req, res, next) => {
+    try {
+      res.json(await voiceController.listVoiceChannels(req.params.guildId));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/connect", async (req, res, next) => {
+    try {
+      const { guildId, channelId } = req.body as {
+        guildId?: string;
+        channelId?: string;
+      };
+
+      if (!guildId || !channelId) {
+        throw new AppError(
+          "guildId and channelId are required",
+          "MISSING_CONNECT_FIELDS",
+          400,
+        );
+      }
+
+      res.json(await voiceController.connect(guildId, channelId));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/disconnect", async (_req, res, next) => {
+    try {
+      res.json(await voiceController.disconnect());
+    } catch (error) {
+      next(error);
+    }
   });
 
   // Inbound: Discord PCM → tagged chunks → browser
@@ -232,6 +285,29 @@ export function startWebserver(port: number = 3000) {
       wsClients.delete(ws);
     });
   });
+
+  app.use(
+    (
+      error: Error,
+      _req: express.Request,
+      res: express.Response,
+      _next: express.NextFunction,
+    ) => {
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({
+          error: error.code,
+          message: error.message,
+        });
+        return;
+      }
+
+      wsLogger.error({ error }, "Unhandled webserver error");
+      res.status(500).json({
+        error: "INTERNAL_SERVER_ERROR",
+        message: "Internal server error",
+      });
+    },
+  );
 
   server.listen(port, "0.0.0.0", () => {
     wsLogger.info({ port }, "Web interface listening");

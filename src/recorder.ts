@@ -5,6 +5,7 @@ import {
   entersState,
   getVoiceConnection,
   joinVoiceChannel,
+  type VoiceConnection,
   VoiceConnectionStatus,
 } from "@discordjs/voice";
 import type { Client, VoiceChannel } from "discord.js-selfbot-v13";
@@ -36,7 +37,7 @@ if (!fs.existsSync(recordingsDir)) {
 export async function startRecording(
   client: Client,
   channel: VoiceChannel,
-): Promise<void> {
+): Promise<VoiceConnection | null> {
   const connection = joinVoiceChannel({
     channelId: channel.id,
     guildId: channel.guild.id,
@@ -78,7 +79,7 @@ export async function startRecording(
   } catch (err) {
     logger.error({ error: err }, "Failed to connect to voice channel");
     connection.destroy();
-    return;
+    return null;
   }
 
   const receiver = connection.receiver;
@@ -118,7 +119,7 @@ export async function startRecording(
       const audioStream = receiver.subscribe(userId, {
         end: {
           behavior: EndBehaviorType.AfterSilence,
-          duration: 3000,
+          duration: config.AUDIO_STREAM_SILENCE_DURATION_MS,
         },
       });
       const oggPacketStream = audioStream.pipe(packetFilterForOgg);
@@ -237,6 +238,8 @@ export async function startRecording(
       logger.info("Voice connection destroyed");
     }
   });
+
+  return connection;
 }
 
 /**

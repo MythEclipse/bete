@@ -3,8 +3,8 @@ import { ConfigError } from "./errors";
 
 const configSchema = z.object({
   DISCORD_TOKEN: z.string().min(1, "DISCORD_TOKEN is required"),
-  VOICE_CHANNEL_ID: z.string().min(1, "VOICE_CHANNEL_ID is required"),
-  GUILD_ID: z.string().min(1, "GUILD_ID is required"),
+  VOICE_CHANNEL_ID: z.string().min(1).optional(),
+  GUILD_ID: z.string().min(1).optional(),
   VERBOSE: z
     .string()
     .optional()

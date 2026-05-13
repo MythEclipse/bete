@@ -121,12 +121,62 @@
             border-left-color: var(--success);
             background: rgba(67, 181, 129, 0.1);
         }
+
+        .connection-panel {
+            gap: 0.75rem;
+            text-align: left;
+        }
+
+        .field-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        .field-group label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .field-group select {
+            padding: 0.65rem;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: #2f3136;
+            color: var(--text);
+        }
+
+        .button-row {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .voice-status {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1 style="margin-bottom: 0.5rem;">Discord Gateway v4</h1>
         <p style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 2rem;">Optimized 24kHz Mono Bridge</p>
+
+        <div class="status-card connection-panel">
+            <div class="field-group">
+                <label for="guildSelect">Guild</label>
+                <select id="guildSelect"></select>
+            </div>
+            <div class="field-group">
+                <label for="channelSelect">Voice Channel</label>
+                <select id="channelSelect"></select>
+            </div>
+            <div class="button-row">
+                <button id="joinVoiceBtn" class="btn btn-success">Join Channel</button>
+                <button id="disconnectVoiceBtn" class="btn btn-danger">Disconnect</button>
+            </div>
+            <div id="voiceStatusText" class="voice-status">Not connected</div>
+        </div>
 
         <div class="status-card">
             <div style="display: flex; align-items: center; gap: 10px;">
@@ -156,6 +206,11 @@
         const listenStatus = document.getElementById('listenStatus');
         const userList = document.getElementById('userList');
         const visualizer = document.getElementById('visualizer');
+        const guildSelect = document.getElementById('guildSelect');
+        const channelSelect = document.getElementById('channelSelect');
+        const joinVoiceBtn = document.getElementById('joinVoiceBtn');
+        const disconnectVoiceBtn = document.getElementById('disconnectVoiceBtn');
+        const voiceStatusText = document.getElementById('voiceStatusText');
 
         for (let i = 0; i < 32; i++) {
             const bar = document.createElement('div');
@@ -178,6 +233,62 @@
         const NOISE_GATE_THRESHOLD = 0.01;
         const NOISE_GATE_HOLD_FRAMES = 3;
         let noiseGateHold = 0;
+
+        async function apiRequest(url, options = {}) {
+            const response = await fetch(url, {
+                headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+                ...options,
+            });
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({ message: response.statusText }));
+                throw new Error(error.message || response.statusText);
+            }
+            return response.json();
+        }
+
+        function setVoiceStatus(message, isError = false) {
+            voiceStatusText.innerText = message;
+            voiceStatusText.style.color = isError ? '#f04747' : 'var(--text-muted)';
+        }
+
+        function renderSelect(select, items, placeholder) {
+            select.replaceChildren();
+            const placeholderOption = document.createElement('option');
+            placeholderOption.value = '';
+            placeholderOption.textContent = placeholder;
+            select.appendChild(placeholderOption);
+            for (const item of items) {
+                const option = document.createElement('option');
+                option.value = item.id;
+                option.textContent = item.name;
+                select.appendChild(option);
+            }
+        }
+
+        async function loadGuilds() {
+            const guilds = await apiRequest('/api/guilds');
+            renderSelect(guildSelect, guilds, 'Select guild');
+        }
+
+        async function loadVoiceChannels(guildId) {
+            if (!guildId) {
+                renderSelect(channelSelect, [], 'Select voice channel');
+                return;
+            }
+            const channels = await apiRequest(`/api/guilds/${guildId}/voice-channels`);
+            renderSelect(channelSelect, channels, 'Select voice channel');
+        }
+
+        async function refreshVoiceStatus() {
+            const status = await apiRequest('/api/status');
+            if (status.connected) {
+                setVoiceStatus(`Connected to ${status.activeChannelName || status.activeChannelId}`);
+            } else if (status.ready) {
+                setVoiceStatus('Discord ready. Select a voice channel.');
+            } else {
+                setVoiceStatus('Discord client is not ready yet.');
+            }
+        }
 
         function initWebSocket() {
             if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
@@ -252,6 +363,45 @@
             userNextStartTime += audioBuffer.duration;
             userTimelines.set(userIdHash, userNextStartTime);
         }
+
+        guildSelect.onchange = async () => {
+            try {
+                await loadVoiceChannels(guildSelect.value);
+            } catch (error) {
+                setVoiceStatus(error.message, true);
+            }
+        };
+
+        joinVoiceBtn.onclick = async () => {
+            try {
+                if (!guildSelect.value || !channelSelect.value) {
+                    setVoiceStatus('Select guild and voice channel first.', true);
+                    return;
+                }
+                joinVoiceBtn.disabled = true;
+                const status = await apiRequest('/api/connect', {
+                    method: 'POST',
+                    body: JSON.stringify({ guildId: guildSelect.value, channelId: channelSelect.value }),
+                });
+                setVoiceStatus(`Connected to ${status.activeChannelName || status.activeChannelId}`);
+            } catch (error) {
+                setVoiceStatus(error.message, true);
+            } finally {
+                joinVoiceBtn.disabled = false;
+            }
+        };
+
+        disconnectVoiceBtn.onclick = async () => {
+            try {
+                disconnectVoiceBtn.disabled = true;
+                await apiRequest('/api/disconnect', { method: 'POST' });
+                setVoiceStatus('Disconnected.');
+            } catch (error) {
+                setVoiceStatus(error.message, true);
+            } finally {
+                disconnectVoiceBtn.disabled = false;
+            }
+        };
 
         toggleBtn.onclick = async () => {
             if (isStreaming) {
@@ -350,6 +500,8 @@
             }
         };
 
+        loadGuilds().catch((error) => setVoiceStatus(error.message, true));
+        refreshVoiceStatus().catch((error) => setVoiceStatus(error.message, true));
         initWebSocket();
     </script>
 </body>

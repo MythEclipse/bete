@@ -13,8 +13,6 @@ describe("loadConfig", () => {
     process.env = {
       ...originalEnv,
       DISCORD_TOKEN: "token",
-      VOICE_CHANNEL_ID: "voice-channel",
-      GUILD_ID: "guild",
       VERBOSE: "true",
       WEBSERVER_PORT: "4000",
       NODE_ENV: "test",
@@ -24,8 +22,8 @@ describe("loadConfig", () => {
     const config = loadConfig(process.env);
 
     expect(config.DISCORD_TOKEN).toBe("token");
-    expect(config.VOICE_CHANNEL_ID).toBe("voice-channel");
-    expect(config.GUILD_ID).toBe("guild");
+    expect(config.GUILD_ID).toBeUndefined();
+    expect(config.VOICE_CHANNEL_ID).toBeUndefined();
     expect(config.VERBOSE).toBe(true);
     expect(config.WEBSERVER_PORT).toBe(4000);
     expect(config.RECORDINGS_DIR).toBe("./recordings");
