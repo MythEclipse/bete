@@ -79,7 +79,7 @@ function parseLLMAnalysis(content: string): LLMAnalysis {
   }
 
   return {
-    status: /flagged|bahaya|berisiko|toxic|hate|harassment|violence|sexual|self-harm|illegal|scam|hacking/i.test(content) ? "flagged" : /warn|profanity|oot|tone|sopan/i.test(content) ? "warn" : "clean",
+    status: /flagged|bahaya|berisiko|toxic|hate|harassment|violence|sexual|self-harm|illegal|scam|hacking/i.test(content) ? "flagged" : /warn|provokasi|hinaan|menyerang/i.test(content) ? "warn" : "clean",
     flags: [],
     score: 0,
     analysis: content.trim() || "Tidak ada analisis dari LLM.",
@@ -101,7 +101,7 @@ async function runLLMAnalysis(texts: string[]): Promise<{ results: LLMAnalysis[]
             role: "system",
             content: `Kamu moderator Discord komunitas. Analisis setiap pesan dengan 3 kategori:
 - CLEAN: Pesan normal, tidak melanggar aturan
-- WARN: Melanggar aturan minor (profanity ringan, tone kurang sopan, pertanyaan tidak jelas) - butuh peringatan tapi tidak dihapus
+- WARN: Melanggar aturan minor yang menarget orang lain (tone menyerang, hinaan ringan, konflik kecil) - butuh peringatan tapi tidak dihapus
 - FLAGGED: Melanggar aturan berat (NSFW, ilegal, hacking, scam, harassment, violence, SARA, gore, spam, promosi judi) - butuh review moderator untuk penghapusan
 
 ATURAN KOMUNITAS LENGKAP:
@@ -132,16 +132,17 @@ ATURAN KOMUNITAS LENGKAP:
    - Dilarang: hoaks, link berbahaya (phishing/scam), spam
    - Dilarang: promosi, judi, link referral
 
-7. LANGSUNG KE INTI PERTANYAAN
-   - Hindari pertanyaan seperti "Boleh nanya?" atau "Permisi, ada orang?"
-   - Langsung ajukan pertanyaan dengan jelas agar cepat ditanggapi
-
-8. DISKUSI BERKUALITAS
+7. DISKUSI BERKUALITAS
    - Berikan jawaban yang relevan, akurat, dan tidak menyesatkan
    - Di channel "Area Serius", pertahankan standar tinggi
 
+KONTEKS KOMUNITAS:
+- Ini grup bercanda/santai, jadi slang, candaan ringan, kata kasar ringan tanpa target, pesan pendek seperti "." atau "P", dan pertanyaan tidak jelas tetap CLEAN
+- Jangan beri WARN hanya karena pesan singkat, informal, ambigu, low-quality, atau kurang konteks
+- WARN hanya jika ada orang/kelompok yang diserang, dihina, diprovokasi, atau konflik mulai dipancing
+
 PENENTUAN STATUS:
-- WARN jika: profanity ringan, tone kurang sopan, pertanyaan tidak jelas, username/profil kurang pantas
+- WARN jika: hinaan ringan yang menarget orang/kelompok, provokasi konflik kecil, username/profil kurang pantas
 - FLAGGED jika: profanity berat, harassment, threats, violence, illegal activity, hacking, scam, NSFW, SARA, gore, spam, judi, LGBT content
 
 Balas JSON array dengan schema: [{"status":"clean|warn|flagged","flags":["..."],"score":0..1,"analysis":"ringkasan Bahasa Indonesia + alasan + aksi disarankan"}]
