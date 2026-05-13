@@ -55,6 +55,8 @@ function getDatabase(): Database.Database {
   return db;
 }
 
+export { getDatabase };
+
 export async function enqueueMuxerJob(data: MuxerJobData): Promise<string> {
   try {
     const database = getDatabase();

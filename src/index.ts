@@ -8,16 +8,17 @@ import { createChildLogger } from "./logger";
 import { discordPlayer } from "./player";
 import { VoiceController } from "./voiceController";
 import { startWebserver } from "./webserver";
+import { registerMessageCapture } from "./moderation/messageCapture";
+import { getDatabase } from "./muxer-queue";
 
 const logger = createChildLogger("bot");
 
 const token = config.DISCORD_TOKEN;
 
-// Inisialisasi selfbot client
 const client = new Client();
 const voiceController = new VoiceController(client);
+const db = getDatabase();
 
-// Track shutdown state
 let isShuttingDown = false;
 
 async function gracefulShutdown(signal: string) {
@@ -30,15 +31,12 @@ async function gracefulShutdown(signal: string) {
   logger.info({ signal }, "Graceful shutdown initiated");
 
   try {
-    // Step 1: Stop voice connection
     logger.info("Stopping voice connection...");
     await voiceController.disconnect();
 
-    // Step 2: Pause player
     logger.info("Pausing player...");
     discordPlayer.pause();
 
-    // Step 3: Destroy client
     logger.info("Destroying Discord client...");
     try {
       client.destroy();
@@ -56,6 +54,7 @@ async function gracefulShutdown(signal: string) {
 
 client.on("ready", async () => {
   logger.info({ user: client.user?.tag }, "Bot logged in");
+  registerMessageCapture(client, db);
   startWebserver(config.WEBSERVER_PORT, client, voiceController);
 });
 
@@ -63,7 +62,6 @@ client.on("error", (err) => {
   logger.error({ error: err }, "Client error");
 });
 
-// Graceful shutdown handlers
 process.on("SIGINT", () => {
   gracefulShutdown("SIGINT");
 });
@@ -72,16 +70,15 @@ process.on("SIGTERM", () => {
   gracefulShutdown("SIGTERM");
 });
 
-// Handle uncaught exceptions
 process.on("uncaughtException", (err) => {
   logger.error({ error: err }, "Uncaught exception");
   gracefulShutdown("uncaughtException");
 });
 
-// Handle unhandled promise rejections
 process.on("unhandledRejection", (reason, promise) => {
   logger.error({ reason, promise }, "Unhandled rejection");
   gracefulShutdown("unhandledRejection");
 });
 
 client.login(token);
+
