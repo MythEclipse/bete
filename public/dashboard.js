@@ -416,6 +416,9 @@ const state = {
       } else {
         state.audioContextListen?.close();
         state.audioContextListen = null;
+        if (state.opusDecoder) {
+          state.opusDecoder.close();
+        }
         state.opusDecoder = null;
         state.opusDecoderReady = false;
         state.opusDecodeQueue = [];
@@ -456,8 +459,10 @@ const state = {
     }
 
     function decodeOpus(opusBuffer) {
-      if (!state.opusDecoderReady) {
-        state.opusDecodeQueue.push(opusBuffer);
+      if (!state.isListening || !state.opusDecoderReady) {
+        if (state.isListening) {
+          state.opusDecodeQueue.push(opusBuffer);
+        }
         return;
       }
       try {
@@ -483,12 +488,15 @@ const state = {
       if (!state.audioContextListen) return;
       const sampleRate = audioData.sampleRate;
       const frameCount = audioData.numberOfFrames;
+      const numberOfChannels = audioData.numberOfChannels;
       const audioBuffer = state.audioContextListen.createBuffer(
-        audioData.numberOfChannels,
+        numberOfChannels,
         frameCount,
         sampleRate
       );
-      audioData.copyTo(audioBuffer);
+      for (let ch = 0; ch < numberOfChannels; ch++) {
+        audioData.copyTo(audioBuffer.getChannelData(ch), { planeIndex: ch });
+      }
       const source = state.audioContextListen.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(state.audioContextListen.destination);
