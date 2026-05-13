@@ -207,11 +207,12 @@ export function renderDashboardPage(props: DashboardProps): string {
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=JetBrains+Mono:wght@400;600;700&family=Manrope:wght@500;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/dashboard.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/15.1.22/Tone.js"></script>
 </head>
 <body>
   <div id="root">${app}</div>
   <script id="__DASHBOARD_DATA__" type="application/json">${bootstrap}</script>
-  <script src="/dashboard.js" defer></script>
+  <script type="module" src="/dashboard.js"></script>
 </body>
 </html>`;
 }
