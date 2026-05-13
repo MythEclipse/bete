@@ -163,7 +163,11 @@ function connectWebSocket() {
       handleJsonEvent(event.data);
       return;
     }
-    if (state.isListening) playPcm(event.data);
+    console.log('[listen] Received PCM packet:', event.data.byteLength, 'bytes, isListening:', state.isListening);
+    if (state.isListening) {
+      console.log('[listen] Playing PCM...');
+      playPcm(event.data);
+    }
   };
 }
 
@@ -404,9 +408,11 @@ function stopStreaming() {
 
 function toggleListen() {
   state.isListening = !state.isListening;
+  console.log('[listen] Toggle listen:', state.isListening);
   if (state.isListening) {
     state.audioContextListen = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SAMPLE_RATE });
     state.userTimelines.clear();
+    console.log('[listen] AudioContext created, sampleRate:', SAMPLE_RATE);
     el.listenBtn.textContent = 'Leave Listen Channel';
     el.listenStatus.textContent = 'speaker on';
   } else {
@@ -419,11 +425,13 @@ function toggleListen() {
 }
 
 function playPcm(arrayBuffer) {
+  console.log('[listen] playPcm called, isListening:', state.isListening, 'hasContext:', !!state.audioContextListen);
   if (!state.isListening || !state.audioContextListen) return;
 
   const headerView = new DataView(arrayBuffer, 0, 4);
   const userIdHash = headerView.getInt32(0, true);
   const audioData = arrayBuffer.slice(4);
+  console.log('[listen] userIdHash:', userIdHash, 'audioDataLength:', audioData.byteLength);
 
   const int16Array = new Int16Array(audioData);
   const float32Array = new Float32Array(int16Array.length);
@@ -441,6 +449,7 @@ function playPcm(arrayBuffer) {
   let userNextStartTime = state.userTimelines.get(userIdHash) || 0;
 
   if (userNextStartTime < currentTime) userNextStartTime = currentTime + 0.05;
+  console.log('[listen] Starting playback at:', userNextStartTime, 'duration:', audioBuffer.duration);
   source.start(userNextStartTime);
   userNextStartTime += audioBuffer.duration;
   state.userTimelines.set(userIdHash, userNextStartTime);
