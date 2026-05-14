@@ -5,16 +5,11 @@ import http from "http";
 import path from "path";
 import * as prism from "prism-media";
 import { WebSocketServer } from "ws";
-import { getDatabase } from "./database/drizzle";
 import { AppError } from "./errors";
 import { createChildLogger, logger } from "./logger";
 import { getMetrics, uptimeGauge } from "./metrics";
 import { createBroadcaster } from "./moderation/broadcaster";
-import {
-  getDatabase as getMuxerDatabase,
-  getPersistedValue,
-  setPersistedValue,
-} from "./muxer-queue";
+import { getPersistedValue, setPersistedValue } from "./muxer-queue";
 import { discordPlayer } from "./player";
 import { createAnalysisRoutes } from "./routes/analysisRoutes";
 import { createMessageRoutes } from "./routes/messageRoutes";
