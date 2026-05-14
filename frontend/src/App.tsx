@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { listMessages, reanalyzeMessage } from "./api/client";
 import { connectDashboardSocket } from "./ws/client";
-import type { DashboardEvent, MessageRecord } from "./api/client";
+import type { MessageRecord } from "./api/client";
+import type { DashboardEvent } from "./ws/client";
 import { MessageFeed } from "./components/messages/MessageFeed";
 import { ReviewPanel } from "./components/review/ReviewPanel";
 
