@@ -9,17 +9,18 @@ import { getDatabase } from "./database/drizzle";
 import { AppError } from "./errors";
 import { createChildLogger, logger } from "./logger";
 import { getMetrics, uptimeGauge } from "./metrics";
-import { syncSelectedChannelBacklog } from "./moderation/backlogSync";
-import {
-  getAttachmentsByChannel,
-  getMessagesByChannel,
-} from "./moderation/messageStore";
+import { createBroadcaster } from "./moderation/broadcaster";
 import {
   getDatabase as getMuxerDatabase,
   getPersistedValue,
   setPersistedValue,
 } from "./muxer-queue";
 import { discordPlayer } from "./player";
+import { createAnalysisRoutes } from "./routes/analysisRoutes";
+import { createMessageRoutes } from "./routes/messageRoutes";
+import { createSyncRoutes } from "./routes/syncRoutes";
+import { createUIStateRoutes } from "./routes/uiStateRoutes";
+import { createVoiceRoutes } from "./routes/voiceRoutes";
 import type { VoiceController } from "./voiceController";
 
 const wsLogger = createChildLogger("webserver");
@@ -28,7 +29,6 @@ const activeUsers = new Map<
   string,
   { username: string; avatar: string; speaking: boolean }
 >();
-let wsClients = new Set<any>();
 
 interface SharedUIState {
   selectedGuild: string;
@@ -58,16 +58,6 @@ function getSharedUIState(): SharedUIState {
   return { ...sharedUIState };
 }
 
-function broadcastUIState() {
-  const payload = JSON.stringify({
-    type: "ui_state",
-    state: getSharedUIState(),
-  });
-  wsClients.forEach((client) => {
-    if (client.readyState === 1) client.send(payload);
-  });
-}
-
 function patchSharedUIState(patch: Partial<SharedUIState>) {
   if (typeof patch.selectedGuild === "string") {
     sharedUIState.selectedGuild = patch.selectedGuild;
@@ -88,7 +78,6 @@ function patchSharedUIState(patch: Partial<SharedUIState>) {
     sharedUIState.isStreaming = patch.isStreaming;
   }
   setPersistedValue("web-ui-state", sharedUIState);
-  broadcastUIState();
   return getSharedUIState();
 }
 
@@ -130,6 +119,10 @@ export async function startWebserver(
   const wsPath = "/ws";
   const wss = new WebSocketServer({ server, path: wsPath });
   wsLogger.info({ port, wsPath }, "WebSocket server listening");
+
+  // Create broadcaster instance
+  const broadcaster = createBroadcaster();
+  (globalThis as any).moderationBroadcaster = broadcaster;
 
   // Security headers. CSP disabled because the current static UI uses inline scripts/styles.
   app.use(
@@ -173,7 +166,7 @@ export async function startWebserver(
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       activeUsers: activeUsers.size,
-      wsClients: wsClients.size,
+      wsClients: broadcaster.clientCount(),
     });
   });
 
@@ -184,163 +177,15 @@ export async function startWebserver(
     res.send(await getMetrics());
   });
 
-  app.get("/api/status", (_req, res) => {
-    res.json(voiceController.getStatus());
-  });
-
-  app.get("/api/ui-state", (_req, res) => {
-    res.json(getSharedUIState());
-  });
-
-  app.post("/api/ui-state", (req, res) => {
-    res.json(patchSharedUIState(req.body as Partial<SharedUIState>));
-  });
-
-  app.get("/api/guilds", (_req, res) => {
-    res.json(voiceController.listGuilds());
-  });
-
-  app.get("/api/guilds/:guildId/voice-channels", async (req, res, next) => {
-    try {
-      res.json(await voiceController.listVoiceChannels(req.params.guildId));
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  app.get("/api/guilds/:guildId/channels", async (req, res, next) => {
-    try {
-      res.json(await voiceController.listWatchableChannels(req.params.guildId));
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  app.get("/api/guilds/:guildId/threads", async (req, res, next) => {
-    try {
-      res.json(await voiceController.listThreads(req.params.guildId));
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  app.post("/api/connect", async (req, res, next) => {
-    try {
-      const { guildId, channelId } = req.body as {
-        guildId?: string;
-        channelId?: string;
-      };
-
-      if (!guildId || !channelId) {
-        throw new AppError(
-          "guildId and channelId are required",
-          "MISSING_CONNECT_FIELDS",
-          400,
-        );
-      }
-
-      const status = await voiceController.connect(guildId, channelId);
-      patchSharedUIState({
-        selectedGuild: guildId,
-        selectedVoiceChannel: channelId,
-      });
-      res.json(status);
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  app.post("/api/disconnect", async (_req, res, next) => {
-    try {
-      res.json(await voiceController.disconnect());
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  // Moderation API endpoints
-  app.get("/api/messages", async (req, res, next) => {
-    try {
-      const {
-        channel,
-        type,
-        limit = "50",
-        offset = "0",
-      } = req.query as {
-        channel?: string;
-        type?: string;
-        limit?: string;
-        offset?: string;
-      };
-
-      if (!channel) {
-        throw new AppError(
-          "channel query parameter is required",
-          "MISSING_CHANNEL",
-          400,
-        );
-      }
-
-      const limitNum = Math.min(parseInt(limit) || 50, 100);
-      const offsetNum = parseInt(offset) || 0;
-
-      if (type === "image") {
-        const attachments = await getAttachmentsByChannel(
-          channel,
-          limitNum,
-          offsetNum,
-        );
-        res.json({
-          type: "image",
-          data: attachments,
-          count: attachments.length,
-        });
-      } else {
-        const messages = await getMessagesByChannel(
-          channel,
-          limitNum,
-          offsetNum,
-        );
-        res.json({
-          type: "text",
-          data: messages,
-          count: messages.length,
-        });
-      }
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  app.post("/api/backlog-sync", async (req, res, next) => {
-    try {
-      const { guildId, channelId } = req.body as {
-        guildId?: string;
-        channelId?: string;
-      };
-
-      if (!guildId || !channelId) {
-        throw new AppError(
-          "guildId and channelId are required",
-          "MISSING_BACKLOG_PARAMS",
-          400,
-        );
-      }
-
-      const count = await syncSelectedChannelBacklog(
-        _client,
-        guildId,
-        channelId,
-      );
-      res.json({
-        success: true,
-        channelId,
-        messagesSync: count,
-      });
-    } catch (error) {
-      next(error);
-    }
-  });
+  // Register route modules
+  app.use(
+    "/api",
+    createUIStateRoutes({ getSharedUIState, patchSharedUIState }),
+  );
+  app.use("/api", createVoiceRoutes(voiceController));
+  app.use("/api", createMessageRoutes());
+  app.use("/api", createAnalysisRoutes());
+  app.use("/api", createSyncRoutes(_client));
 
   // Inbound: Discord PCM → tagged chunks → browser
   (global as any).broadcastPcmToWeb = (chunk: Buffer, userId: string) => {
@@ -352,9 +197,9 @@ export async function startWebserver(
     const header = Buffer.alloc(4);
     header.writeInt32LE(hash, 0);
     const packet = Buffer.concat([header, chunk]);
-    wsClients.forEach((client) => {
+    for (const client of broadcaster.getClients?.() || []) {
       if (client.readyState === 1) client.send(packet);
-    });
+    }
   };
 
   (global as any).updateActiveUser = (
@@ -366,47 +211,31 @@ export async function startWebserver(
   };
 
   function broadcastUserState() {
-    const payload = JSON.stringify({
-      type: "user_state",
-      users: Array.from(activeUsers.entries()).map(([id, data]) => ({
-        id,
-        ...data,
-      })),
-    });
-    wsClients.forEach((client) => {
-      if (client.readyState === 1) client.send(payload);
-    });
-  }
-
-  function broadcastMessageEvent(type: string, data: any) {
-    const payload = JSON.stringify({
-      type,
-      data,
-      timestamp: Date.now(),
-    });
-    wsClients.forEach((client) => {
-      if (client.readyState === 1) client.send(payload);
-    });
+    const users = Array.from(activeUsers.entries()).map(([id, data]) => ({
+      id,
+      ...data,
+    }));
+    broadcaster.userState(users);
   }
 
   (global as any).broadcastMessageCreated = (data: any) => {
-    broadcastMessageEvent("message_created", data);
+    broadcaster.messageCreated(data);
   };
 
   (global as any).broadcastMessageUpdated = (data: any) => {
-    broadcastMessageEvent("message_updated", data);
+    broadcaster.messageUpdated(data);
   };
 
   (global as any).broadcastMessageDeleted = (data: any) => {
-    broadcastMessageEvent("message_deleted", data);
+    broadcaster.messageDeleted(data);
   };
 
   (global as any).broadcastAttachmentUploaded = (data: any) => {
-    broadcastMessageEvent("attachment_uploaded", data);
+    broadcaster.attachmentCreated(data);
   };
 
   (global as any).broadcastMessageAnalyzed = (data: any) => {
-    broadcastMessageEvent("message_analyzed", data);
+    broadcaster.messageAnalyzed(data);
   };
 
   // --- Outbound: browser PCM (24kHz mono) → Opus → Discord ---
@@ -497,7 +326,7 @@ export async function startWebserver(
 
   wss.on("connection", (ws) => {
     wsLogger.info({ port, wsPath }, "New WebSocket connection");
-    wsClients.add(ws);
+    broadcaster.addClient(ws);
 
     ws.send(
       JSON.stringify({
@@ -524,10 +353,10 @@ export async function startWebserver(
     });
 
     ws.on("close", () => {
-      wsClients.delete(ws);
+      broadcaster.removeClient(ws);
     });
     ws.on("error", () => {
-      wsClients.delete(ws);
+      broadcaster.removeClient(ws);
     });
   });
 

@@ -20,7 +20,7 @@ function sendJson(clients: Set<ClientLike>, event: ModerationWsEvent): void {
       } catch (error) {
         log.warn(
           { error, eventType: event.type },
-          "Failed to send event to client"
+          "Failed to send event to client",
         );
       }
     }
@@ -41,6 +41,9 @@ export function createBroadcaster() {
     },
     clientCount() {
       return clients.size;
+    },
+    getClients() {
+      return Array.from(clients);
     },
     uiState(state: unknown) {
       sendJson(clients, { type: "ui_state", state });
