@@ -24,15 +24,26 @@ export async function initializeDatabase() {
   }
 
   if (config.DATABASE_TYPE === "postgres") {
-    const pool = new Pool({
-      host: config.POSTGRES_HOST,
-      port: config.POSTGRES_PORT,
-      user: config.POSTGRES_USER,
-      password: config.POSTGRES_PASSWORD,
-      database: config.POSTGRES_DB,
-      min: config.POSTGRES_POOL_MIN,
-      max: config.POSTGRES_POOL_MAX,
-    });
+    let pool: Pool;
+
+    // Use DATABASE_URL if available, otherwise build from individual variables
+    if (config.DATABASE_URL) {
+      pool = new Pool({
+        connectionString: config.DATABASE_URL,
+        min: config.POSTGRES_POOL_MIN,
+        max: config.POSTGRES_POOL_MAX,
+      });
+    } else {
+      pool = new Pool({
+        host: config.POSTGRES_HOST,
+        port: config.POSTGRES_PORT,
+        user: config.POSTGRES_USER,
+        password: config.POSTGRES_PASSWORD,
+        database: config.POSTGRES_DB,
+        min: config.POSTGRES_POOL_MIN,
+        max: config.POSTGRES_POOL_MAX,
+      });
+    }
 
     db = drizzlePostgres(pool, { schema });
     logger.info("PostgreSQL database initialized");
