@@ -1,103 +1,171 @@
-# 🎙️ Discord Voice Recorder Bot
+# Discord Moderation Watcher Bot
 
-Bot Discord yang **otomatis join ke voice channel** saat startup dan **merekam suara** semua pengguna yang bicara. File audio disimpan secara lokal dalam format `.ogg`.
+Bot monitoring Discord yang merekam voice channel, menangkap pesan teks, menyimpan attachment, menjalankan analisis opsional, dan menyediakan dashboard web real-time.
 
-Dibangun dengan **Bun** + **discord.js** + **@discordjs/voice**.
+Stack utama: Node.js, pnpm, TypeScript, `discord.js-selfbot-v13`, `@discordjs/voice`, Express, WebSocket, Drizzle ORM, SQLite/PostgreSQL, React, Vite, Vitest, dan Biome.
 
----
+## Prasyarat
 
-## 📋 Prasyarat
+- Node.js versi modern yang kompatibel dengan TypeScript dan Vite.
+- pnpm 10.x. Repo ini dipin ke `pnpm@10.25.0`.
+- FFmpeg tersedia di `PATH` untuk proses muxing audio.
+- Native audio dependencies dapat dibuild di mesin lokal (`@discordjs/opus`, `better-sqlite3`, `sodium-native`).
 
-- [Bun](https://bun.sh) >= 1.0
-- FFmpeg (untuk encoding audio)
-  ```bash
-  # Ubuntu/Debian
-  sudo apt install ffmpeg
-  
-  # Arch
-  sudo pacman -S ffmpeg
-  ```
-- Discord Bot dengan permission:
-  - `Connect` (join voice channel)
-  - `Use Voice Activity`
-  - `Read Messages/View Channels`
-  - Privileged Intents: **Server Members Intent** (aktifkan di Developer Portal)
+Install FFmpeg:
 
----
-
-## ⚙️ Setup
-
-### 1. Clone & Install
 ```bash
-cd /path/to/bot
-bun install
+# Ubuntu/Debian
+sudo apt install ffmpeg
+
+# Arch
+sudo pacman -S ffmpeg
 ```
 
-### 2. Konfigurasi `.env`
+## Setup
+
 ```bash
+pnpm install
 cp .env.example .env
 ```
 
-Edit `.env`:
+Edit `.env` sesuai server yang dimonitor:
+
 ```env
-DISCORD_TOKEN=your_bot_token_here
-VOICE_CHANNEL_ID=your_voice_channel_id_here
-GUILD_ID=your_guild_id_here
+DISCORD_TOKEN=your_token_here
+MONITOR_GUILD_ID=your_guild_id_here
 RECORDINGS_DIR=./recordings
+WEBSERVER_PORT=3000
+DATABASE_TYPE=sqlite
 ```
 
-**Cara mendapatkan ID:**
-- Aktifkan **Developer Mode** di Discord (Settings → Advanced → Developer Mode)
-- Klik kanan pada voice channel → **Copy Channel ID** → paste ke `VOICE_CHANNEL_ID`
-- Klik kanan pada server/guild → **Copy Server ID** → paste ke `GUILD_ID`
-- Token bot dari [Discord Developer Portal](https://discord.com/developers/applications) → Bot → Reset Token
+Catatan: project ini memakai selfbot library, bukan bot token Discord standar. Pastikan penggunaan sesuai risiko dan aturan platform yang berlaku.
 
-### 3. Invite Bot ke Server
-Di Developer Portal → OAuth2 → URL Generator:
-- Scopes: `bot`
-- Bot Permissions: `Connect`, `Use Voice Activity`, `View Channels`
-
-Copy URL, buka di browser, pilih server.
-
----
-
-## 🚀 Menjalankan Bot
+## Menjalankan
 
 ```bash
-# Development (auto-restart saat file berubah)
-bun run dev
+# Bot/server utama dengan auto-restart
+pnpm run dev
 
-# Production
-bun run start
+# Production-style start
+pnpm run start
+
+# Dashboard frontend dev server
+pnpm run dev:web
 ```
 
-Bot akan langsung join ke voice channel yang ditentukan dalam `.env`.
+Dashboard build production disajikan dari `public/app` setelah menjalankan:
 
----
-
-## 📁 Struktur File Rekaman
-
+```bash
+pnpm run build:web
 ```
+
+## Command Development
+
+```bash
+# Type checking
+pnpm run typecheck
+
+# Lint
+pnpm run lint
+
+# Format
+pnpm run format
+
+# Test
+pnpm run test
+
+# Build frontend + TypeScript
+pnpm run build
+```
+
+## Database
+
+Default database adalah SQLite di `.muxer-queue.db`. PostgreSQL dapat dipakai dengan `DATABASE_TYPE=postgres` dan konfigurasi `DATABASE_URL` atau variabel `POSTGRES_*`.
+
+```bash
+# Generate migration Drizzle
+pnpm run db:generate
+
+# Jalankan migration via drizzle-kit
+pnpm run db:migrate
+
+# Jalankan migration programmatic
+pnpm run db:migrate:programmatic
+
+# Buka Drizzle Studio
+pnpm run db:studio
+```
+
+## Fitur
+
+- Voice recording ke segment `.ogg` per user.
+- Metadata JSON per segment audio.
+- Text message capture untuk pesan baru, edit, dan delete.
+- Attachment capture dan upload ke endpoint Picser.
+- SQLite/PostgreSQL via Drizzle ORM.
+- REST API dan WebSocket untuk dashboard.
+- Dashboard React untuk pesan, gambar, voice, dan moderation review.
+- Metrics Prometheus di endpoint server.
+- Retry dengan backoff untuk operasi eksternal.
+- AI moderation analysis opsional via konfigurasi `AI_*`.
+
+## Struktur Rekaman
+
+```text
 recordings/
-  ├── 123456789-1709900000000.ogg   # <user-id>-<timestamp>.ogg
-  ├── 987654321-1709900001234.ogg
-  └── ...
+  <user-id>/
+    <user-id>-<session-start>-0.ogg
+    <user-id>-<session-start>-0.json
+    <user-id>-<session-start>-1.ogg
+    <user-id>-<session-start>-1.json
 ```
 
-Setiap kali user bicara dan berhenti (>1 detik diam), satu file `.ogg` baru dibuat.
+Segment duration dikontrol oleh `RECORDING_SEGMENT_MS`.
 
----
+## Struktur Proyek
 
-## 📁 Struktur Proyek
-
+```text
+src/
+  index.ts                    Entry point Discord client dan server
+  recorder.ts                 Voice recording pipeline
+  recorder/                   Audio stream, decoder, segment metadata
+  moderation/                 Message capture, storage, uploads, AI review
+  database/                   Drizzle setup, schema, migrations
+  routes/                     Express route modules
+  webserver.ts                Express + WebSocket server
+  retry.ts                    Retry helper berbasis p-retry
+  audio/ffmpegProcess.ts      Direct ffmpeg process wrapper
+frontend/                     React dashboard source
+public/app/                   Dashboard build output
+tests/                        Vitest tests
+drizzle/migrations/           Database migrations
 ```
-bot/
-├── src/
-│   ├── index.ts       # Entry point — login & auto-join
-│   └── recorder.ts    # Core recording logic
-├── recordings/        # File audio tersimpan (otomatis dibuat)
-├── .env               # Konfigurasi (buat dari .env.example)
-├── .env.example
-├── package.json
-└── tsconfig.json
+
+## Konfigurasi Penting
+
+Lihat `.env.example` untuk daftar lengkap. Variabel utama:
+
+- `DISCORD_TOKEN` — token akun/client yang dipakai selfbot.
+- `MONITOR_GUILD_ID` — guild yang dimonitor untuk moderation capture.
+- `RECORDINGS_DIR` — direktori output audio.
+- `WEBSERVER_PORT` — port HTTP/WebSocket.
+- `DATABASE_TYPE` — `sqlite` atau `postgres`.
+- `PICSER_UPLOAD_URL` — endpoint upload attachment.
+- `AI_ANALYSIS_ENABLED` — aktifkan/nonaktifkan analisis AI.
+- `AI_LLM_API_KEY`, `AI_LLM_BASE_URL`, `AI_LLM_MODEL` — konfigurasi provider LLM.
+
+## Verifikasi Setelah Perubahan
+
+Sebelum menjalankan lama atau deploy, jalankan:
+
+```bash
+pnpm install
+pnpm run typecheck
+pnpm run lint
+pnpm run test
+pnpm run build
 ```
+
+## Catatan Library Modernization
+
+Project memakai Zod untuk validasi runtime, Drizzle untuk database, dan wrapper `node:child_process` langsung untuk FFmpeg. Library lama `class-transformer`, `class-validator`, dan `fluent-ffmpeg` sudah tidak dipakai.

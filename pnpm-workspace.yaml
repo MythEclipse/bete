@@ -1,3 +1,7 @@
+packages:
+  - .
+  - vendor/discord.js-selfbot-v13
+
 onlyBuiltDependencies:
   - '@discordjs/opus'
   - better-sqlite3
