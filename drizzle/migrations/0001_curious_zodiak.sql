@@ -11,12 +11,12 @@ CREATE TABLE "ai_analysis_runs" (
 	"completed_at" bigint
 );
 --> statement-breakpoint
-CREATE INDEX "idx_ai_analysis_runs_conversation_key" ON "ai_analysis_runs" USING btree ("conversation_key");--> statement-breakpoint
-CREATE INDEX "idx_ai_analysis_runs_status" ON "ai_analysis_runs" USING btree ("status");--> statement-breakpoint
-CREATE INDEX "idx_ai_analysis_runs_created_at" ON "ai_analysis_runs" USING btree ("created_at");--> statement-breakpoint
-CREATE INDEX "idx_attachments_channel_created" ON "attachments" USING btree ("channel_id","created_at","id");--> statement-breakpoint
-CREATE INDEX "idx_attachments_thread_created" ON "attachments" USING btree ("thread_id","created_at","id");--> statement-breakpoint
-CREATE INDEX "idx_messages_channel_created" ON "messages" USING btree ("channel_id","created_at","id");--> statement-breakpoint
-CREATE INDEX "idx_messages_thread_created" ON "messages" USING btree ("thread_id","created_at","id");--> statement-breakpoint
-CREATE INDEX "idx_messages_ai_status_created" ON "messages" USING btree ("ai_status","created_at","id");--> statement-breakpoint
-CREATE INDEX "idx_messages_guild_ai_status_created" ON "messages" USING btree ("guild_id","ai_status","created_at","id");
+CREATE INDEX "idx_ai_analysis_runs_conversation_key" ON "ai_analysis_runs" ("conversation_key");--> statement-breakpoint
+CREATE INDEX "idx_ai_analysis_runs_status" ON "ai_analysis_runs" ("status");--> statement-breakpoint
+CREATE INDEX "idx_ai_analysis_runs_created_at" ON "ai_analysis_runs" ("created_at");--> statement-breakpoint
+CREATE INDEX "idx_attachments_channel_created" ON "attachments" ("channel_id","created_at","id");--> statement-breakpoint
+CREATE INDEX "idx_attachments_thread_created" ON "attachments" ("thread_id","created_at","id");--> statement-breakpoint
+CREATE INDEX "idx_messages_channel_created" ON "messages" ("channel_id","created_at","id");--> statement-breakpoint
+CREATE INDEX "idx_messages_thread_created" ON "messages" ("thread_id","created_at","id");--> statement-breakpoint
+CREATE INDEX "idx_messages_ai_status_created" ON "messages" ("ai_status","created_at","id");--> statement-breakpoint
+CREATE INDEX "idx_messages_guild_ai_status_created" ON "messages" ("guild_id","ai_status","created_at","id");
