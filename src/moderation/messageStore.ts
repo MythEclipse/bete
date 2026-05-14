@@ -3,7 +3,6 @@ import { getDatabase } from "../database/drizzle";
 import { attachmentsTable, messagesTable } from "../database/schema";
 import { createChildLogger } from "../logger";
 import type {
-  AIStatus,
   AttachmentRecord,
   MessageQuery,
   MessageRecord,
