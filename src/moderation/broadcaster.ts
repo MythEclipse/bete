@@ -5,13 +5,25 @@ import type {
   MessageRecord,
   ModerationWsEvent,
 } from "./types";
+import { createChildLogger } from "../logger";
 
 type ClientLike = Pick<WebSocket, "readyState" | "send">;
+
+const log = createChildLogger("broadcaster");
 
 function sendJson(clients: Set<ClientLike>, event: ModerationWsEvent): void {
   const payload = JSON.stringify({ ...event, timestamp: Date.now() });
   for (const client of clients) {
-    if (client.readyState === 1) client.send(payload);
+    if (client.readyState === 1) {
+      try {
+        client.send(payload);
+      } catch (error) {
+        log.warn(
+          { error, eventType: event.type },
+          "Failed to send event to client"
+        );
+      }
+    }
   }
 }
 
@@ -21,9 +33,11 @@ export function createBroadcaster() {
   return {
     addClient(client: ClientLike) {
       clients.add(client);
+      log.debug({ clientCount: clients.size }, "Client added");
     },
     removeClient(client: ClientLike) {
       clients.delete(client);
+      log.debug({ clientCount: clients.size }, "Client removed");
     },
     clientCount() {
       return clients.size;
