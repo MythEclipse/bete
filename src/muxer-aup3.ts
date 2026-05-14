@@ -1,6 +1,6 @@
-import fs from "node:fs";
-import path from "node:path";
-import ffmpeg from "fluent-ffmpeg";
+import fs from "fs";
+import path from "path";
+import { buildMuxFfmpegArgs, runFfmpeg } from "./audio/ffmpegProcess";
 
 const recordingsDir = process.env.RECORDINGS_DIR ?? "./recordings";
 
@@ -73,7 +73,7 @@ async function startMuxingToAup3() {
 
               // Check if OGG file has valid header (starts with "OggS")
               const oggBuffer = fs.readFileSync(oggPath);
-              const oggHeader = oggBuffer.slice(0, 4).toString();
+              const oggHeader = oggBuffer.subarray(0, 4).toString();
               if (oggHeader !== "OggS") {
                 console.warn(
                   `[muxer-aup3] Skipping invalid OGG file (bad header): ${oggPath}`,
@@ -116,15 +116,12 @@ async function startMuxingToAup3() {
     `[muxer-aup3] Found ${clips.length} clips. Base timestamp: ${globalStartTime}`,
   );
 
-  const command = ffmpeg();
   const filterParts: string[] = [];
 
   console.log(
     `[muxer-aup3] Creating audio filters for ${clips.length} clips...`,
   );
   clips.forEach((clip, index) => {
-    command.input(clip.oggPath);
-
     // Calculate delay relative to the global start time
     const delayMs = clip.meta.startTime - globalStartTime;
 
@@ -154,33 +151,29 @@ async function startMuxingToAup3() {
   const timestamp = Date.now();
   const wavFilename = path.join(recordingsDir, `muxed-${timestamp}.wav`);
   const aup3Filename = path.join(recordingsDir, `muxed-${timestamp}.aup3`);
+  const inputs = clips.map((clip) => clip.oggPath);
 
   console.log(
     `[muxer-aup3] Combining clips to WAV. This might take a while...`,
   );
 
-  // Using fluent-ffmpeg's complexFilter
-  command
-    .complexFilter(filterParts, "out")
-    .audioCodec("pcm_s16le")
-    .audioFrequency(44100)
-    .audioChannels(2)
-    .save(wavFilename)
-    .on("progress", (progress) => {
-      if (progress.percent) {
-        console.log(
-          `[muxer-aup3] WAV Progress: ${progress.percent.toFixed(2)}%`,
-        );
-      }
-    })
-    .on("end", () => {
-      console.log(`[muxer-aup3] WAV file created: ${wavFilename}`);
-      console.log(`[muxer-aup3] Creating AUP3 project file...`);
-      createAup3Project(wavFilename, aup3Filename, clips, globalStartTime);
-    })
-    .on("error", (err) => {
-      console.error(`[muxer-aup3] FFmpeg Error:`, err);
+  try {
+    const args = buildMuxFfmpegArgs({
+      inputs,
+      filter: filterParts.join(";"),
+      output: wavFilename,
+      codec: "pcm_s16le",
+      audioFrequency: 44100,
+      audioChannels: 2,
     });
+
+    await runFfmpeg(args);
+    console.log(`[muxer-aup3] WAV file created: ${wavFilename}`);
+    console.log(`[muxer-aup3] Creating AUP3 project file...`);
+    createAup3Project(wavFilename, aup3Filename, clips, globalStartTime);
+  } catch (err) {
+    console.error(`[muxer-aup3] FFmpeg Error:`, err);
+  }
 }
 
 function createAup3Project(

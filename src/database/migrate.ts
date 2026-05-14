@@ -5,13 +5,11 @@ import { migrate as migrateSqlite } from "drizzle-orm/better-sqlite3/migrator";
 import { migrate as migratePostgres } from "drizzle-orm/node-postgres/migrator";
 import { config } from "../config";
 import { createChildLogger } from "../logger";
-import { initializeDatabase } from "./drizzle";
+import { closeDatabase, initializeDatabase } from "./drizzle";
 
 const logger = createChildLogger("migrate");
 
-export async function initializeMigrationSqliteDatabase(
-  path = ".muxer-queue.db",
-) {
+export function initializeMigrationSqliteDatabase(path = ".muxer-queue.db") {
   const sqlite = new Database(path);
   sqlite.pragma("journal_mode = WAL");
   return { sqlite, db: drizzleSqlite(sqlite) };
@@ -23,17 +21,23 @@ export async function runMigrations(): Promise<void> {
 
     if (config.DATABASE_TYPE === "postgres") {
       logger.info("Running PostgreSQL migrations");
-      const db = await initializeDatabase();
-      await migratePostgres(db as any, {
-        migrationsFolder: "./drizzle/migrations",
-      });
+      const db = (await initializeDatabase()) as Parameters<
+        typeof migratePostgres
+      >[0];
+      try {
+        await migratePostgres(db, { migrationsFolder: "./drizzle/migrations" });
+      } finally {
+        await closeDatabase();
+      }
       logger.info("PostgreSQL migrations completed successfully");
     } else {
       logger.info("Running SQLite migrations");
-      const { sqlite, db } = await initializeMigrationSqliteDatabase();
-      migrateSqlite(db, { migrationsFolder: "./drizzle/migrations" });
-      // Ensure the SQLite connection is closed after migrations
-      sqlite.close();
+      const { sqlite, db } = initializeMigrationSqliteDatabase();
+      try {
+        migrateSqlite(db, { migrationsFolder: "./drizzle/migrations" });
+      } finally {
+        sqlite.close();
+      }
       logger.info("SQLite migrations completed successfully");
     }
   } catch (error) {
@@ -45,7 +49,6 @@ export async function runMigrations(): Promise<void> {
   }
 }
 
-// Run migrations if called directly
 if (import.meta.url === `file://${process.argv[1]}`) {
   runMigrations()
     .then(() => {

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const userStateUpdateSchema = z.object({
+const userStateUpdateSchema = z.object({
   userId: z.string(),
   username: z.string(),
   avatar: z.string(),

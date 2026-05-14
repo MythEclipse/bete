@@ -32,7 +32,7 @@ export async function retryWithBackoff<T>(
           {
             attempt: error.attemptNumber,
             retriesLeft: error.retriesLeft,
-            error: error.message,
+            error: error.error.message,
           },
           "Retry attempt",
         );
