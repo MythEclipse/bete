@@ -46,14 +46,35 @@ const configSchema = z.object({
   AI_LLM_BASE_URL: z.string().url().default("https://9router.asepharyana.tech/v1"),
   AI_LLM_MODEL: z.string().default("free"),
   AI_ANALYSIS_TIMEOUT_MS: z.coerce.number().positive().default(30000),
+  DATABASE_TYPE: z.enum(["sqlite", "postgres"]).default("sqlite"),
+  DATABASE_URL: z.string().optional(),
+  POSTGRES_HOST: z.string().default("localhost"),
+  POSTGRES_PORT: z.coerce.number().int().positive().default(5432),
+  POSTGRES_USER: z.string().optional(),
+  POSTGRES_PASSWORD: z.string().optional(),
+  POSTGRES_DB: z.string().optional(),
+  POSTGRES_POOL_MIN: z.coerce.number().int().positive().default(2),
+  POSTGRES_POOL_MAX: z.coerce.number().int().positive().default(10),
 }).superRefine((value, ctx) => {
-  if (!value.AI_ANALYSIS_ENABLED) return;
-  if (!value.AI_LLM_API_KEY) {
+  if (!value.AI_ANALYSIS_ENABLED) {
+    // Continue to database validation
+  } else if (!value.AI_LLM_API_KEY) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["AI_LLM_API_KEY"],
       message: "AI_LLM_API_KEY is required when AI_ANALYSIS_ENABLED=true",
     });
+  }
+
+  // Validate PostgreSQL configuration
+  if (value.DATABASE_TYPE === "postgres") {
+    if (!value.DATABASE_URL && !value.POSTGRES_HOST) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["DATABASE_URL"],
+        message: "Either DATABASE_URL or POSTGRES_HOST must be provided when DATABASE_TYPE=postgres",
+      });
+    }
   }
 });
 
