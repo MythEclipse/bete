@@ -1,6 +1,6 @@
-import { drizzle as drizzlePostgres } from "drizzle-orm/node-postgres";
-import { drizzle as drizzleSqlite } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
+import { drizzle as drizzleSqlite } from "drizzle-orm/better-sqlite3";
+import { drizzle as drizzlePostgres } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { config } from "../config";
 import { createChildLogger } from "../logger";
@@ -8,7 +8,10 @@ import * as schema from "./schema";
 
 const logger = createChildLogger("drizzle");
 
-let db: ReturnType<typeof drizzlePostgres> | ReturnType<typeof drizzleSqlite> | null = null;
+let db:
+  | ReturnType<typeof drizzlePostgres>
+  | ReturnType<typeof drizzleSqlite>
+  | null = null;
 
 /**
  * Initialize the database connection based on DATABASE_TYPE config
@@ -51,7 +54,7 @@ export async function initializeDatabase() {
 export function getDatabase() {
   if (db === null) {
     throw new Error(
-      "Database not initialized. Call initializeDatabase() first."
+      "Database not initialized. Call initializeDatabase() first.",
     );
   }
   return db;

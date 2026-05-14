@@ -1,14 +1,12 @@
+import { and, asc, desc, eq, isNull, or } from "drizzle-orm";
 import { getDatabase } from "../database/drizzle";
-import { messagesTable, attachmentsTable } from "../database/schema";
-import { eq, or, desc, asc, and, isNull } from "drizzle-orm";
+import { attachmentsTable, messagesTable } from "../database/schema";
 import { createChildLogger } from "../logger";
 import type { AttachmentRecord, MessageRecord } from "./types";
 
 const logger = createChildLogger("message-store");
 
-export async function insertMessage(
-  message: MessageRecord,
-): Promise<void> {
+export async function insertMessage(message: MessageRecord): Promise<void> {
   try {
     const db = getDatabase() as any;
     await db.insert(messagesTable).values(message).onConflictDoNothing();

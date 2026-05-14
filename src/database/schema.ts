@@ -1,18 +1,18 @@
 import {
+  bigint as pgBigint,
+  foreignKey as pgForeignKey,
+  index as pgIndex,
+  integer as pgInteger,
+  real as pgReal,
   pgTable,
   text as pgText,
-  integer as pgInteger,
-  bigint as pgBigint,
-  real as pgReal,
-  index as pgIndex,
-  foreignKey as pgForeignKey,
 } from "drizzle-orm/pg-core";
 import {
-  sqliteTable,
-  text as sqliteText,
+  index as sqliteIndex,
   integer as sqliteInteger,
   real as sqliteReal,
-  index as sqliteIndex,
+  sqliteTable,
+  text as sqliteText,
 } from "drizzle-orm/sqlite-core";
 import { config } from "../config";
 
@@ -257,14 +257,10 @@ export const sqliteUIStateTable = sqliteTable("ui_state", {
 // ========================================
 
 export const muxerJobsTable =
-  config.DATABASE_TYPE === "postgres"
-    ? pgMuxerJobsTable
-    : sqliteMuxerJobsTable;
+  config.DATABASE_TYPE === "postgres" ? pgMuxerJobsTable : sqliteMuxerJobsTable;
 
 export const messagesTable =
-  config.DATABASE_TYPE === "postgres"
-    ? pgMessagesTable
-    : sqliteMessagesTable;
+  config.DATABASE_TYPE === "postgres" ? pgMessagesTable : sqliteMessagesTable;
 
 export const attachmentsTable =
   config.DATABASE_TYPE === "postgres"
@@ -272,9 +268,7 @@ export const attachmentsTable =
     : sqliteAttachmentsTable;
 
 export const uiStateTable =
-  config.DATABASE_TYPE === "postgres"
-    ? pgUIStateTable
-    : sqliteUIStateTable;
+  config.DATABASE_TYPE === "postgres" ? pgUIStateTable : sqliteUIStateTable;
 
 // Export table types for use in queries
 export type MuxerJob = typeof muxerJobsTable.$inferSelect;

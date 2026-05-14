@@ -1,6 +1,9 @@
-import { getDatabase as getDrizzleDatabase, initializeDatabase } from "./database/drizzle";
+import { and, asc, eq, lt, sql } from "drizzle-orm";
+import {
+  getDatabase as getDrizzleDatabase,
+  initializeDatabase,
+} from "./database/drizzle";
 import { muxerJobsTable, uiStateTable } from "./database/schema";
-import { eq, asc, lt, and, sql } from "drizzle-orm";
 import { createChildLogger } from "./logger";
 
 const logger = createChildLogger("muxer-queue");
@@ -224,9 +227,10 @@ export async function cleanupCompletedJobs(
       ),
     );
 
-  const deletedCount = typeof result === "object" && "rowsAffected" in result
-    ? result.rowsAffected
-    : 0;
+  const deletedCount =
+    typeof result === "object" && "rowsAffected" in result
+      ? result.rowsAffected
+      : 0;
 
   logger.info({ deletedCount }, "Cleaned up completed jobs");
 
@@ -258,9 +262,10 @@ export async function getJobStats(): Promise<{
   };
 
   for (const row of rows) {
-    const count = typeof row.count === "object" && "count" in row.count
-      ? (row.count as any).count
-      : Number(row.count);
+    const count =
+      typeof row.count === "object" && "count" in row.count
+        ? (row.count as any).count
+        : Number(row.count);
     if (row.status === "pending") stats.pending = count;
     else if (row.status === "processing") stats.processing = count;
     else if (row.status === "completed") stats.completed = count;

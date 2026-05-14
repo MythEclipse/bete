@@ -40,9 +40,7 @@ async function syncChannelMessages(
   return synced;
 }
 
-export async function syncBacklogMessages(
-  client: Client,
-): Promise<void> {
+export async function syncBacklogMessages(client: Client): Promise<void> {
   if (!config.MONITOR_GUILD_ID) {
     logger.warn("MONITOR_GUILD_ID not configured, skipping backlog sync");
     return;

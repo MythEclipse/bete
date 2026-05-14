@@ -245,9 +245,7 @@ Satu JSON object per pesan dalam array.`,
   return { results, raw: response };
 }
 
-async function analyzeAndStoreBatch(
-  messages: MessageRecord[],
-): Promise<void> {
+async function analyzeAndStoreBatch(messages: MessageRecord[]): Promise<void> {
   if (messages.length === 0) return;
 
   const analyzableMessages = messages.filter(
@@ -359,9 +357,7 @@ async function drainQueue(): Promise<void> {
   }
 }
 
-export function queueMessageAnalysis(
-  messageId: string,
-): void {
+export function queueMessageAnalysis(messageId: string): void {
   if (!config.AI_ANALYSIS_ENABLED) return;
   logger.debug({ messageId }, "Queueing AI analysis");
   queuedMessageIds.add(messageId);

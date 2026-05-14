@@ -3,10 +3,9 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 const originalEnv = process.env;
 
-describe("PostgreSQL Connection", () => {
-  let skipPostgresTests = false;
+describe("Drizzle ORM Database", () => {
   let config: any;
-  let postgres: any;
+  let drizzle: any;
   let logger: any;
 
   beforeAll(async () => {
@@ -23,118 +22,70 @@ describe("PostgreSQL Connection", () => {
 
     // Import after environment is set
     const configModule = await import("../src/config");
-    const postgresModule = await import("../src/database/postgres");
+    const drizzleModule = await import("../src/database/drizzle");
     const loggerModule = await import("../src/logger");
 
     config = configModule.config;
-    postgres = postgresModule;
+    drizzle = drizzleModule;
     logger = loggerModule.createChildLogger("database.test");
 
-    if (config.DATABASE_TYPE !== "postgres") {
-      skipPostgresTests = true;
-      logger.info("Skipping PostgreSQL tests (DATABASE_TYPE != postgres)");
-    }
+    logger.info(`Testing with DATABASE_TYPE: ${config.DATABASE_TYPE}`);
   });
 
   afterAll(async () => {
-    if (config && config.DATABASE_TYPE === "postgres") {
-      try {
-        await postgres.closePool();
-      } catch (error) {
-        if (logger) {
-          logger.error(
-            { error: error instanceof Error ? error.message : String(error) },
-            "Error closing pool in afterAll",
-          );
-        }
+    try {
+      await drizzle.closeDatabase();
+    } catch (error) {
+      if (logger) {
+        logger.error(
+          { error: error instanceof Error ? error.message : String(error) },
+          "Error closing database in afterAll",
+        );
       }
     }
     process.env = originalEnv;
   });
 
-  it("should initialize connection pool", async () => {
-    if (skipPostgresTests) {
-      logger.info("Skipping test: DATABASE_TYPE is not postgres");
-      return;
-    }
+  it("should initialize database connection", async () => {
+    const db = await drizzle.initializeDatabase();
 
-    const pool = postgres.getPool();
-
-    expect(pool).toBeDefined();
-    expect(pool).toHaveProperty("connect");
-    expect(pool).toHaveProperty("query");
-    expect(pool).toHaveProperty("end");
+    expect(db).toBeDefined();
+    expect(db).toHaveProperty("query");
+    expect(db).toHaveProperty("select");
   });
 
-  it("should execute query", async () => {
-    if (skipPostgresTests) {
-      logger.info("Skipping test: DATABASE_TYPE is not postgres");
-      return;
-    }
+  it("should return same instance on subsequent calls", async () => {
+    const db1 = await drizzle.initializeDatabase();
+    const db2 = await drizzle.initializeDatabase();
 
-    const result = await postgres.query("SELECT 1 as num");
-
-    expect(result).toBeDefined();
-    expect(result.rows).toBeDefined();
-    expect(result.rows.length).toBeGreaterThan(0);
-    expect(result.rows[0]).toHaveProperty("num");
-    expect(result.rows[0].num).toBe(1);
+    expect(db1).toBe(db2);
   });
 
-  it("should handle connection errors gracefully", async () => {
-    if (skipPostgresTests) {
-      logger.info("Skipping test: DATABASE_TYPE is not postgres");
-      return;
-    }
+  it("should get database instance", async () => {
+    await drizzle.initializeDatabase();
+    const db = drizzle.getDatabase();
 
-    // Test that invalid queries throw errors appropriately
-    try {
-      await postgres.query("SELECT * FROM nonexistent_table_xyz");
-      // If we get here, the test should fail
-      expect.fail("Expected query to throw an error");
-    } catch (error) {
-      // Expected behavior: query should throw an error for invalid table
-      expect(error).toBeDefined();
-      expect(error instanceof Error).toBe(true);
-    }
+    expect(db).toBeDefined();
+    expect(db).toHaveProperty("query");
   });
 
-  it("should acquire and release client from pool", async () => {
-    if (skipPostgresTests) {
-      logger.info("Skipping test: DATABASE_TYPE is not postgres");
-      return;
-    }
+  it("should throw error if database not initialized", async () => {
+    // Reset the database state
+    vi.resetModules();
 
-    const client = await postgres.getClient();
+    const drizzleModule = await import("../src/database/drizzle");
 
-    expect(client).toBeDefined();
-    expect(client).toHaveProperty("query");
-    expect(client).toHaveProperty("release");
-
-    // Execute a simple query with the client
-    const result = await client.query("SELECT 1 as num");
-    expect(result.rows[0].num).toBe(1);
-
-    // Release the client back to the pool
-    client.release();
+    expect(() => {
+      drizzleModule.getDatabase();
+    }).toThrow("Database not initialized");
   });
 
-  it("should build config from DATABASE_URL", () => {
-    if (skipPostgresTests) {
-      logger.info("Skipping test: DATABASE_TYPE is not postgres");
-      return;
-    }
+  it("should close database connection", async () => {
+    await drizzle.initializeDatabase();
+    await drizzle.closeDatabase();
 
-    // Test buildConfig function with a sample DATABASE_URL
-    const pgConfig = postgres.buildConfig();
-
-    expect(pgConfig).toBeDefined();
-    expect(pgConfig).toHaveProperty("host");
-    expect(pgConfig).toHaveProperty("port");
-    expect(pgConfig).toHaveProperty("min");
-    expect(pgConfig).toHaveProperty("max");
-    expect(pgConfig.port).toBeGreaterThan(0);
-    expect(pgConfig.min).toBeGreaterThan(0);
-    expect(pgConfig.max).toBeGreaterThanOrEqual(pgConfig.min);
+    expect(() => {
+      drizzle.getDatabase();
+    }).toThrow("Database not initialized");
   });
 });

@@ -4,7 +4,7 @@ import "@snazzah/davey";
 import "dotenv/config";
 import { Client } from "discord.js-selfbot-v13";
 import { config } from "./config";
-import { initializeDatabase, closeDatabase } from "./database/drizzle";
+import { closeDatabase, initializeDatabase } from "./database/drizzle";
 import { createChildLogger } from "./logger";
 import { startPendingAIAnalysisWorker } from "./moderation/aiAnalyzer";
 import { syncBacklogMessages } from "./moderation/backlogSync";

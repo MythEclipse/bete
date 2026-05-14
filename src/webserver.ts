@@ -5,6 +5,7 @@ import http from "http";
 import path from "path";
 import * as prism from "prism-media";
 import { WebSocketServer } from "ws";
+import { getDatabase } from "./database/drizzle";
 import { AppError } from "./errors";
 import { createChildLogger, logger } from "./logger";
 import { getMetrics, uptimeGauge } from "./metrics";
@@ -18,7 +19,6 @@ import {
   getPersistedValue,
   setPersistedValue,
 } from "./muxer-queue";
-import { getDatabase } from "./database/drizzle";
 import { discordPlayer } from "./player";
 import type { VoiceController } from "./voiceController";
 
@@ -296,7 +296,11 @@ export async function startWebserver(
           count: attachments.length,
         });
       } else {
-        const messages = await getMessagesByChannel(channel, limitNum, offsetNum);
+        const messages = await getMessagesByChannel(
+          channel,
+          limitNum,
+          offsetNum,
+        );
         res.json({
           type: "text",
           data: messages,

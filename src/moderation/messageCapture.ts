@@ -1,9 +1,9 @@
 import type { Client, Message } from "discord.js-selfbot-v13";
+import { eq } from "drizzle-orm";
 import { config } from "../config";
-import { createChildLogger } from "../logger";
 import { getDatabase } from "../database/drizzle";
 import { messagesTable } from "../database/schema";
-import { eq } from "drizzle-orm";
+import { createChildLogger } from "../logger";
 import { queueMessageAnalysis } from "./aiAnalyzer";
 import {
   getDisplayContent,
@@ -94,9 +94,7 @@ export async function captureMessage(
   );
 }
 
-export function registerMessageCapture(
-  client: Client,
-): void {
+export function registerMessageCapture(client: Client): void {
   client.on("messageCreate", async (message) => {
     if (!message.guildId || message.guildId !== config.MONITOR_GUILD_ID) return;
     if (message.author?.bot) return;
