@@ -1,10 +1,10 @@
 import { createChildLogger } from "../logger";
-import type { SqliteDatabase } from "../muxer-queue";
+import type { DatabaseAdapter } from "../database/adapter";
 import type { MessageRecord, AttachmentRecord } from "./types";
 
 const logger = createChildLogger("message-store");
 
-export function insertMessage(db: SqliteDatabase, message: MessageRecord): void {
+export function insertMessage(db: DatabaseAdapter, message: MessageRecord): void {
   try {
     const stmt = db.prepare(`
       INSERT OR IGNORE INTO messages (
@@ -41,7 +41,7 @@ export function insertMessage(db: SqliteDatabase, message: MessageRecord): void 
 }
 
 export function updateMessageAsEdited(
-  db: SqliteDatabase,
+  db: DatabaseAdapter,
   messageId: string,
   editedContent: string,
   editedAt: number,
@@ -65,7 +65,7 @@ export function updateMessageAsEdited(
 }
 
 export function updateMessageAsDeleted(
-  db: SqliteDatabase,
+  db: DatabaseAdapter,
   messageId: string,
   deletedAt: number,
 ): void {
@@ -88,7 +88,7 @@ export function updateMessageAsDeleted(
 }
 
 export function getMessagesByChannel(
-  db: SqliteDatabase,
+  db: DatabaseAdapter,
   channelId: string,
   limit: number = 50,
   offset: number = 0,
@@ -112,7 +112,7 @@ export function getMessagesByChannel(
   }
 }
 
-export function insertAttachment(db: SqliteDatabase, attachment: AttachmentRecord): void {
+export function insertAttachment(db: DatabaseAdapter, attachment: AttachmentRecord): void {
   try {
     const stmt = db.prepare(`
       INSERT OR IGNORE INTO attachments (
@@ -150,7 +150,7 @@ export function insertAttachment(db: SqliteDatabase, attachment: AttachmentRecor
 }
 
 export function getAttachmentsByChannel(
-  db: SqliteDatabase,
+  db: DatabaseAdapter,
   channelId: string,
   limit: number = 50,
   offset: number = 0,
@@ -175,7 +175,7 @@ export function getAttachmentsByChannel(
 }
 
 export function updateAttachmentAsUploaded(
-  db: SqliteDatabase,
+  db: DatabaseAdapter,
   attachmentId: string,
   uploadedUrl: string,
   uploadedAt: number,
@@ -199,7 +199,7 @@ export function updateAttachmentAsUploaded(
 }
 
 export function updateAttachmentAsFailedUpload(
-  db: SqliteDatabase,
+  db: DatabaseAdapter,
   attachmentId: string,
   error: string,
 ): void {
@@ -232,7 +232,7 @@ interface AIAnalysisUpdate {
 }
 
 export function updateMessageAIAnalysis(
-  db: SqliteDatabase,
+  db: DatabaseAdapter,
   messageId: string,
   result: AIAnalysisUpdate,
 ): MessageRecord | null {
@@ -267,7 +267,7 @@ export function updateMessageAIAnalysis(
 }
 
 export function getPendingAIAnalysisMessages(
-  db: SqliteDatabase,
+  db: DatabaseAdapter,
   limit: number = 25,
 ): MessageRecord[] {
   try {
@@ -289,7 +289,7 @@ export function getPendingAIAnalysisMessages(
   }
 }
 
-export function getMessageById(db: SqliteDatabase, messageId: string): MessageRecord | null {
+export function getMessageById(db: DatabaseAdapter, messageId: string): MessageRecord | null {
   const row = db.prepare("SELECT * FROM messages WHERE id = ?").get(messageId) as MessageRecord | undefined;
   return row ?? null;
 }
