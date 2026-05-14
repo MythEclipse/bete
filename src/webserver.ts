@@ -182,7 +182,14 @@ export async function startWebserver(
     "/api",
     createUIStateRoutes({ getSharedUIState, patchSharedUIState }),
   );
-  app.use("/api", createVoiceRoutes(voiceController));
+  app.use(
+    "/api",
+    createVoiceRoutes({
+      voiceController,
+      patchSharedUIState,
+      broadcaster,
+    }),
+  );
   app.use("/api", createMessageRoutes());
   app.use("/api", createAnalysisRoutes());
   app.use("/api", createSyncRoutes(_client));
@@ -197,7 +204,7 @@ export async function startWebserver(
     const header = Buffer.alloc(4);
     header.writeInt32LE(hash, 0);
     const packet = Buffer.concat([header, chunk]);
-    for (const client of broadcaster.getClients?.() || []) {
+    for (const client of broadcaster.getClients()) {
       if (client.readyState === 1) client.send(packet);
     }
   };
