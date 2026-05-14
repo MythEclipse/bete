@@ -6,7 +6,11 @@ import {
   listMessages,
   listReviewMessages,
 } from "../../src/moderation/messageStore";
-import { getDatabase, initializeDatabase, closeDatabase } from "../../src/database/drizzle";
+import {
+  getDatabase,
+  initializeDatabase,
+  closeDatabase,
+} from "../../src/database/drizzle";
 import { createChildLogger } from "../../src/logger";
 import type { MessageRecord } from "../../src/moderation/types";
 
@@ -15,7 +19,10 @@ const logger = createChildLogger("messageStoreQueries.test");
 describe("message cursor helpers", () => {
   it("round-trips created_at and id", () => {
     const cursor = encodeCursor({ created_at: 1710000000000, id: "abc" });
-    expect(decodeCursor(cursor)).toEqual({ created_at: 1710000000000, id: "abc" });
+    expect(decodeCursor(cursor)).toEqual({
+      created_at: 1710000000000,
+      id: "abc",
+    });
   });
 
   it("returns null for invalid cursor", () => {
@@ -56,7 +63,10 @@ describe("message query integration tests", () => {
         )
       `);
     } catch (error) {
-      logger.debug({ error }, "Messages table already exists or error creating it");
+      logger.debug(
+        { error },
+        "Messages table already exists or error creating it",
+      );
     }
   });
 
@@ -422,7 +432,9 @@ describe("message query integration tests", () => {
 
       expect(result.data).toHaveLength(3);
       const ids = result.data.map((m) => m.id).sort();
-      expect(ids).toEqual(["msg-review-2", "msg-review-3", "msg-review-4"].sort());
+      expect(ids).toEqual(
+        ["msg-review-2", "msg-review-3", "msg-review-4"].sort(),
+      );
     });
 
     it("excludes clean status messages", async () => {

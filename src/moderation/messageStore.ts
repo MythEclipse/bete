@@ -26,10 +26,7 @@ export function decodeCursor(cursor?: string): CursorData | null {
   if (!cursor) return null;
   try {
     const data = JSON.parse(Buffer.from(cursor, "base64").toString("utf-8"));
-    if (
-      typeof data.created_at === "number" &&
-      typeof data.id === "string"
-    ) {
+    if (typeof data.created_at === "number" && typeof data.id === "string") {
       return data;
     }
     return null;
@@ -391,7 +388,9 @@ export async function listMessages(
 
     if (query.status && query.status.length > 0) {
       conditions.push(
-        or(...query.status.map((status) => eq(messagesTable.ai_status, status))),
+        or(
+          ...query.status.map((status) => eq(messagesTable.ai_status, status)),
+        ),
       );
     }
 
@@ -427,7 +426,7 @@ export async function listMessages(
       .limit(fetchLimit);
 
     const hasMore = rows.length > query.limit;
-    const data = (rows.slice(0, query.limit) as MessageRecord[]);
+    const data = rows.slice(0, query.limit) as MessageRecord[];
 
     let nextCursor: string | null = null;
     if (hasMore && data.length > 0) {
