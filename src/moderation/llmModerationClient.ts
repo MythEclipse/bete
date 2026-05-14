@@ -1,7 +1,7 @@
+import type { AnalysisResult, MessageRecord } from "./types";
+import { config } from "../config";
 import { createChildLogger } from "../logger";
 import { retryWithBackoff } from "../retry";
-import { config } from "../config";
-import type { AnalysisResult, MessageRecord } from "./types";
 
 const log = createChildLogger("llmModerationClient");
 
@@ -20,23 +20,40 @@ interface RawModerationResponse {
 /**
  * Parses LLM moderation response and validates against target IDs.
  * Extracts JSON from surrounding text, validates structure, and transforms to AnalysisResult[].
+ * Scans from first '{' and attempts JSON.parse at each candidate closing brace.
  */
 export function parseModerationResponse(
   content: string,
   targetIds: string[],
 ): AnalysisResult[] {
-  // Extract JSON object from surrounding text
-  const jsonMatch = content.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
+  // Find first opening brace
+  const startIdx = content.indexOf("{");
+  if (startIdx === -1) {
     throw new Error("No JSON object found in response");
   }
 
+  // Scan from start and try parsing at each closing brace
   let parsed: unknown;
-  try {
-    parsed = JSON.parse(jsonMatch[0]);
-  } catch (error) {
+  let lastError: Error | null = null;
+
+  for (let i = startIdx + 1; i < content.length; i++) {
+    if (content[i] === "}") {
+      const candidate = content.substring(startIdx, i + 1);
+      try {
+        parsed = JSON.parse(candidate);
+        // Successfully parsed, break out
+        break;
+      } catch (error) {
+        // Store error and continue scanning
+        lastError = error instanceof Error ? error : new Error(String(error));
+        continue;
+      }
+    }
+  }
+
+  if (!parsed) {
     throw new Error(
-      `Failed to parse JSON: ${error instanceof Error ? error.message : String(error)}`,
+      `Failed to parse JSON: ${lastError?.message || "No valid JSON object found"}`,
     );
   }
 
@@ -67,6 +84,10 @@ export function parseModerationResponse(
       throw new Error(`Unknown message_id: ${message_id}`);
     }
 
+    if (foundIds.has(message_id)) {
+      throw new Error(`Duplicate message_id in results: ${message_id}`);
+    }
+
     foundIds.add(message_id);
 
     // Validate status
@@ -77,7 +98,10 @@ export function parseModerationResponse(
       );
     }
 
-    // Validate and clamp score
+    // Validate score: reject null/undefined/non-finite before coercion
+    if (score === null || score === undefined) {
+      throw new Error("Invalid score: must not be null or undefined");
+    }
     let numScore = Number(score);
     if (!Number.isFinite(numScore)) {
       throw new Error(`Invalid score: ${score}. Must be a finite number`);
