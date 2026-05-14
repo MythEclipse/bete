@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { listMessages } from "./api/client";
-import type { DashboardMessage } from "./api/client";
 import { connectDashboardSocket } from "./ws/client";
 import type { DashboardEvent } from "./ws/client";
 
