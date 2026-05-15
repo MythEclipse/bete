@@ -68,4 +68,13 @@ describe("resolveMediaSource", () => {
       statusCode: 400,
     } satisfies Partial<AppError>);
   });
+
+  it("keeps direct URLs as generic URL sources", async () => {
+    await expect(
+      resolveMediaSource("https://cdn.example.com/song.mp3"),
+    ).resolves.toMatchObject({
+      kind: "url",
+      source: "https://cdn.example.com/song.mp3",
+    });
+  });
 });
