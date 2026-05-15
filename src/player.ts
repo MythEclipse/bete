@@ -41,14 +41,19 @@ export class DiscordPlayer {
     });
 
     this.player.play(resource);
+    this.connection?.subscribe(this.player);
+  }
+
+  public getStatus(): AudioPlayerStatus {
+    return this.player.state.status;
   }
 
   public pause() {
     this.player.pause(true);
   }
 
-  public unpause() {
-    this.player.unpause();
+  public unpause(): boolean {
+    return this.player.unpause();
   }
 
   public stop() {

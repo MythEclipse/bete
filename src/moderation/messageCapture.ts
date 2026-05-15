@@ -123,15 +123,6 @@ export async function captureMessage(
       }
     }
   }
-
-  logger.info(
-    {
-      messageId: message.id,
-      channelId: message.channelId,
-      attachmentCount: message.attachments.size,
-    },
-    "Message captured",
-  );
 }
 
 export function registerMessageCapture(client: Client): void {
@@ -206,8 +197,6 @@ export function registerMessageCapture(client: Client): void {
           deleted_at: deletedAt,
         });
       }
-
-      logger.info({ messageId: message.id }, "Message deletion captured");
     } catch (error) {
       logger.error(
         {
@@ -218,6 +207,4 @@ export function registerMessageCapture(client: Client): void {
       );
     }
   });
-
-  logger.info("Message capture handlers registered");
 }

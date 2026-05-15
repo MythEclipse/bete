@@ -4,6 +4,7 @@ import path from "node:path";
 import type { Client } from "discord.js-selfbot-v13";
 import express from "express";
 import helmet from "helmet";
+import { AudioPlayerStatus } from "@discordjs/voice";
 import * as prism from "prism-media";
 import { WebSocketServer } from "ws";
 import { AppError } from "./errors";
@@ -286,31 +287,42 @@ export async function startWebserver(
   const SILENCE_TAIL_MS = 300; // continue sending silence for 300ms after browser stops
   const MAX_BUF_BYTES = BYTES_PER_FRAME * 50; // cap at 1 second to avoid runaway buffer
 
-  const opusEncoder = new prism.opus.Encoder({
-    rate: RATE,
-    channels: CHANNELS,
-    frameSize: FRAME_SIZE,
-  });
-  const oggBitstream = new prism.opus.OggLogicalBitstream({
-    opusHead: new prism.opus.OpusHead({
-      channelCount: CHANNELS,
-      sampleRate: RATE,
-    }),
-    pageSizeControl: { maxPackets: 1 }, // 1 packet per page = 20ms latency
-    crc: true,
-  });
-  opusEncoder.on("error", () => {});
-  opusEncoder.pipe(oggBitstream);
+  let opusEncoder: prism.opus.Encoder;
+  let bridgePlayerPaused = true;
+  const SILENCE_FRAME = Buffer.alloc(BYTES_PER_FRAME, 0);
 
-  // Prime OGG headers before player starts reading
-  opusEncoder.write(Buffer.alloc(BYTES_PER_FRAME, 0));
-  discordPlayer.playStream(oggBitstream);
-  discordPlayer.pause();
+  function startBrowserAudioBridge(): void {
+    opusEncoder = new prism.opus.Encoder({
+      rate: RATE,
+      channels: CHANNELS,
+      frameSize: FRAME_SIZE,
+    });
+    const oggBitstream = new prism.opus.OggLogicalBitstream({
+      opusHead: new prism.opus.OpusHead({
+        channelCount: CHANNELS,
+        sampleRate: RATE,
+      }),
+      pageSizeControl: { maxPackets: 1 },
+      crc: true,
+    });
+    opusEncoder.on("error", () => {});
+    opusEncoder.pipe(oggBitstream);
+    opusEncoder.write(Buffer.alloc(BYTES_PER_FRAME, 0));
+    discordPlayer.playStream(oggBitstream);
+    discordPlayer.pause();
+    bridgePlayerPaused = true;
+  }
+
+  function ensureBrowserAudioBridge(): void {
+    if (discordPlayer.getStatus() === AudioPlayerStatus.Idle) {
+      startBrowserAudioBridge();
+    }
+  }
+
+  startBrowserAudioBridge();
 
   let pcmBuffer = Buffer.alloc(0);
   let lastBrowserAudioTime = 0;
-  let playerPaused = true;
-  const SILENCE_FRAME = Buffer.alloc(BYTES_PER_FRAME, 0);
 
   // Log level every 2 seconds
   let dbAccum = 0,
@@ -339,18 +351,19 @@ export async function startWebserver(
       dbAccum += rmsDb(frame);
       dbCount++;
 
-      if (playerPaused) {
-        discordPlayer.unpause();
-        playerPaused = false;
-        wsLogger.info("Transmitting — Discord indicator ON");
+      ensureBrowserAudioBridge();
+      if (bridgePlayerPaused) {
+        const unpaused = discordPlayer.unpause();
+        bridgePlayerPaused = false;
+        wsLogger.info({ unpaused }, "Transmitting — Discord indicator ON");
       }
     } else if (msSinceAudio < SILENCE_TAIL_MS && msSinceAudio > 0) {
       // Buffer drained but audio was recent — pad silence to avoid OGG gap
       frame = SILENCE_FRAME;
-    } else if (!playerPaused && msSinceAudio >= SILENCE_TAIL_MS) {
+    } else if (!bridgePlayerPaused && msSinceAudio >= SILENCE_TAIL_MS) {
       // No audio for a while — pause Discord indicator
       discordPlayer.pause();
-      playerPaused = true;
+      bridgePlayerPaused = true;
       wsLogger.info("Stopped — Discord indicator OFF");
       return;
     } else {

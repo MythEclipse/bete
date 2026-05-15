@@ -45,7 +45,6 @@ export function createSyncRoutes(client: Client): Router {
       }
 
       if (shouldSkipRecentBacklogSync(guildId, channelId)) {
-        logger.debug({ guildId, channelId }, "Skipping recent backlog sync");
         res.json({
           success: true,
           channelId,
@@ -56,15 +55,8 @@ export function createSyncRoutes(client: Client): Router {
         return;
       }
 
-      logger.info({ guildId, channelId }, "Queueing backlog sync");
-
       syncSelectedChannelBacklog(client, guildId, channelId)
-        .then((count) => {
-          logger.info(
-            { guildId, channelId, messagesSync: count },
-            "Backlog sync complete",
-          );
-        })
+        .then(() => {})
         .catch((error) => {
           logger.warn(
             {

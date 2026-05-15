@@ -110,11 +110,6 @@ async function processBatch(
     }
 
     conversationErrorCooldown.delete(conversationKey);
-
-    logger.info(
-      { conversationKey, count: messages.length },
-      "Batch analysis complete",
-    );
   } catch (error) {
     lastError = error instanceof Error ? error.message : String(error);
     conversationErrorCooldown.set(
@@ -173,20 +168,12 @@ async function runAnalysisInWorker(
 function scheduleConversationAnalysis(conversationKey: string): void {
   // Skip if already processing
   if (conversationProcessing.has(conversationKey)) {
-    logger.debug(
-      { conversationKey },
-      "Conversation already processing, skipping schedule",
-    );
     return;
   }
 
   // Skip if in error cooldown
   const cooldownUntil = conversationErrorCooldown.get(conversationKey);
   if (cooldownUntil && Date.now() < cooldownUntil) {
-    logger.debug(
-      { conversationKey, cooldownMs: cooldownUntil - Date.now() },
-      "Conversation in error cooldown, skipping schedule",
-    );
     return;
   }
 
@@ -202,10 +189,6 @@ function scheduleConversationAnalysis(conversationKey: string): void {
 
     // If activeRequests >= MAX_ACTIVE_REQUESTS, requeue instead of waiting
     if (activeRequests >= MAX_ACTIVE_REQUESTS) {
-      logger.debug(
-        { conversationKey, activeRequests },
-        "Max active requests reached, requeuing conversation",
-      );
       scheduleConversationAnalysis(conversationKey);
       return;
     }
@@ -230,7 +213,6 @@ function scheduleConversationAnalysis(conversationKey: string): void {
 export async function queueMessageAnalysis(messageId: string): Promise<void> {
   if (!config.AI_ANALYSIS_ENABLED) return;
 
-  logger.debug({ messageId }, "Queueing message for analysis");
 
   try {
     // Look up the message to get its conversation key
@@ -260,7 +242,6 @@ export async function queueMessageAnalysis(messageId: string): Promise<void> {
 export function queueConversationAnalysis(conversationKey: string): void {
   if (!config.AI_ANALYSIS_ENABLED) return;
 
-  logger.debug({ conversationKey }, "Queueing conversation for analysis");
 
   // Schedule debounced analysis
   scheduleConversationAnalysis(conversationKey);
@@ -281,12 +262,7 @@ export function getAnalysisQueueStatus(): AnalysisQueueStatus {
  * Starts the pending AI analysis recovery worker
  */
 export function startPendingAIAnalysisWorker(): void {
-  if (!config.AI_ANALYSIS_ENABLED) {
-    logger.info("AI analysis disabled");
-    return;
-  }
-
-  logger.info("AI analysis worker started");
+  if (!config.AI_ANALYSIS_ENABLED) return;
 
   setInterval(async () => {
     try {
@@ -310,10 +286,6 @@ export function startPendingAIAnalysisWorker(): void {
           continue;
         }
 
-        logger.debug(
-          { conversationKey: key },
-          "Recovering pending conversation",
-        );
         scheduleConversationAnalysis(key);
       }
     } catch (error) {

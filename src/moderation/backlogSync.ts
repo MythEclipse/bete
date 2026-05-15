@@ -73,11 +73,6 @@ export async function syncBacklogMessages(client: Client): Promise<void> {
     await syncSelectedChannelBacklog(client, guild.id, config.TEXT_CHANNEL_ID);
     return;
   }
-
-  logger.info(
-    { guildId: guild.id },
-    "Backlog sync ready (will sync on-demand per selected channel)",
-  );
 }
 
 export async function syncSelectedChannelBacklog(
@@ -102,17 +97,8 @@ export async function syncSelectedChannelBacklog(
   }
 
   const cutoffTime = Date.now() - config.BACKLOG_SYNC_HOURS * 60 * 60 * 1000;
-  logger.info(
-    { guildId, channelId, hours: config.BACKLOG_SYNC_HOURS },
-    "Starting backlog sync for selected channel",
-  );
-
   try {
     const count = await syncChannelMessages(channel, cutoffTime);
-    logger.info(
-      { channelId, count },
-      "Backlog sync completed for selected channel",
-    );
     return count;
   } catch (error) {
     logger.warn(

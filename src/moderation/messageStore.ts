@@ -61,11 +61,6 @@ export async function insertMessage(message: MessageRecord): Promise<void> {
   try {
     const database = db();
     await database.insert(messagesTable).values(message).onConflictDoNothing();
-
-    logger.debug(
-      { messageId: message.id, channelId: message.channel_id },
-      "Message inserted",
-    );
   } catch (error) {
     logger.error(
       {
@@ -94,12 +89,7 @@ export async function upsertMessageForCapture(
       .onConflictDoNothing()
       .returning({ id: messagesTable.id });
 
-    const inserted = rows.length > 0;
-    logger.debug(
-      { messageId: message.id, channelId: message.channel_id, inserted },
-      inserted ? "Message inserted for capture" : "Message already captured",
-    );
-    return inserted;
+    return rows.length > 0;
   } catch (error) {
     logger.error(
       {
@@ -134,8 +124,6 @@ export async function updateMessageAsEdited(
         ai_error: null,
       })
       .where(eq(messagesTable.id, messageId));
-
-    logger.debug({ messageId }, "Message marked as edited");
   } catch (error) {
     logger.error(
       {
@@ -161,8 +149,6 @@ export async function updateMessageAsDeleted(
         type: "deleted",
       })
       .where(eq(messagesTable.id, messageId));
-
-    logger.debug({ messageId }, "Message marked as deleted");
   } catch (error) {
     logger.error(
       {
@@ -217,11 +203,6 @@ export async function insertAttachment(
       .insert(attachmentsTable)
       .values(attachment)
       .onConflictDoNothing();
-
-    logger.debug(
-      { attachmentId: attachment.id, messageId: attachment.message_id },
-      "Attachment inserted",
-    );
   } catch (error) {
     logger.error(
       {
@@ -282,11 +263,6 @@ export async function updateAttachmentAsUploaded(
         uploaded_at: uploadedAt,
       })
       .where(eq(attachmentsTable.id, attachmentId));
-
-    logger.debug(
-      { attachmentId, uploadedUrl },
-      "Attachment marked as uploaded",
-    );
   } catch (error) {
     logger.error(
       {
@@ -312,8 +288,6 @@ export async function updateAttachmentAsFailedUpload(
         upload_error: error,
       })
       .where(eq(attachmentsTable.id, attachmentId));
-
-    logger.debug({ attachmentId, error }, "Attachment marked as failed upload");
   } catch (error) {
     logger.error(
       {

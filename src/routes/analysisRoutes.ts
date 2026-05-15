@@ -1,14 +1,11 @@
 import type { Router } from "express";
 import express from "express";
 import { AppError } from "../errors";
-import { createChildLogger } from "../logger";
 import {
   getAnalysisQueueStatus,
   queueMessageAnalysis,
 } from "../moderation/aiAnalyzer";
 import { getMessageById } from "../moderation/messageStore";
-
-const logger = createChildLogger("analysis-routes");
 
 export function createAnalysisRoutes(): Router {
   const router = express.Router();
@@ -40,8 +37,6 @@ export function createAnalysisRoutes(): Router {
 
       // Queue for analysis
       await queueMessageAnalysis(id);
-
-      logger.info({ messageId: id }, "Message queued for re-analysis");
 
       res.json({
         success: true,

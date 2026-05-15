@@ -82,12 +82,7 @@ export async function uploadAttachmentToPicser(
       },
     );
 
-    const parsed = parseUploadResponse(response);
-    logger.info(
-      { filename, url: parsed.url },
-      "Attachment uploaded successfully",
-    );
-    return parsed;
+    return parseUploadResponse(response);
   } catch (error) {
     logger.error(
       {
@@ -127,8 +122,6 @@ export async function processAttachmentUpload(
   filename: string,
 ): Promise<void> {
   try {
-    logger.info({ attachmentId, filename }, "Starting attachment upload");
-
     const buffer = await downloadDiscordAttachment(discordUrl);
 
     const sizeMb = buffer.length / (1024 * 1024);
@@ -141,10 +134,6 @@ export async function processAttachmentUpload(
     const result = await uploadAttachmentToPicser(buffer, filename);
 
     await updateAttachmentAsUploaded(attachmentId, result.url, Date.now());
-    logger.info(
-      { attachmentId, uploadedUrl: result.url },
-      "Attachment upload completed",
-    );
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     await updateAttachmentAsFailedUpload(attachmentId, errorMsg);
