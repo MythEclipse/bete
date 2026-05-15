@@ -176,16 +176,6 @@
     el.skipMediaBtn.addEventListener('click', () => skipMedia().catch((error) => showError(error.message)));
     el.stopMediaBtn.addEventListener('click', () => stopMedia().catch((error) => showError(error.message)));
 
-    async function fetchMediaStatus() { state.media = await apiRequest('/api/media/status'); renderMedia(); }
-    async function queueMedia() { const source = el.mediaSourceInput.value.trim(); if (!source) return showError('Enter a music URL or local file path'); state.media = await apiRequest('/api/media/queue', { method: 'POST', body: JSON.stringify({ source }) }); el.mediaSourceInput.value = ''; renderMedia(); }
-    async function skipMedia() { state.media = await apiRequest('/api/media/skip', { method: 'POST' }); renderMedia(); }
-    async function stopMedia() { state.media = await apiRequest('/api/media/stop', { method: 'POST' }); renderMedia(); }
-    function renderMedia() { el.mediaQueueList.replaceChildren(); const current = state.media.current; el.mediaStatus.textContent = current ? `Playing ${current.title}` : 'Idle'; if (current) { const item = document.createElement('div'); item.className = 'event-card'; item.textContent = `Now: ${current.title}`; el.mediaQueueList.appendChild(item); } for (const queued of state.media.queue || []) { const item = document.createElement('div'); item.className = 'event-card'; item.textContent = queued.title; el.mediaQueueList.appendChild(item); } if (!current && (!state.media.queue || state.media.queue.length === 0)) appendEmpty(el.mediaQueueList, 'No media queued'); }
-
-    el.queueMediaBtn.addEventListener('click', () => queueMedia().catch((error) => showError(error.message)));
-    el.skipMediaBtn.addEventListener('click', () => skipMedia().catch((error) => showError(error.message)));
-    el.stopMediaBtn.addEventListener('click', () => stopMedia().catch((error) => showError(error.message)));
-
     connectWebSocket();
     apiRequest('/api/ui-state').then(applyServerState).then(() => loadGuilds()).then(refreshStatus).then(fetchMediaStatus).catch((error) => showError(error.message));
     setInterval(() => { if (state.activeTab === 'text') fetchText().catch(() => {}); }, 7000);
