@@ -18,7 +18,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:migrate:programmatic": "tsx src/database/migrate.ts",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "install:yt-dlp": "sh scripts/install-yt-dlp.sh"
   },
   "dependencies": {
     "@dank074/discord-video-stream": "workspace:*",

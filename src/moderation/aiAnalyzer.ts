@@ -1,9 +1,7 @@
+import { Worker } from "node:worker_threads";
 import { config } from "../config";
 import { createChildLogger } from "../logger";
-import { buildConversationPromptMessages } from "./conversationContext";
-import { runModerationAnalysis } from "./llmModerationClient";
 import {
-  getConversationContextBefore,
   getMessageById,
   getPendingConversationKeys,
   getPendingMessagesByConversation,
@@ -38,8 +36,14 @@ const MAX_ACTIVE_REQUESTS = 1;
 const DEBOUNCE_MS = 1500;
 const RECOVERY_INTERVAL_MS = 15000;
 const ERROR_COOLDOWN_MS = 30000;
-const MAX_CONTEXT_TOKENS = 8000;
 const MAX_BATCH_SIZE = 25;
+
+interface AnalysisWorkerResponse {
+  ok: boolean;
+  conversationKey: string;
+  rows: MessageRecord[];
+  error?: string;
+}
 
 /**
  * Gets the conversation key for a message (thread_id or channel_id)
@@ -86,53 +90,25 @@ async function processBatch(
   activeRequests++;
   conversationProcessing.add(conversationKey);
   try {
-    // Get context before the first message
-    const firstMessage = messages[0];
-    const contextBefore = await getConversationContextBefore({
-      channelId: firstMessage.channel_id,
-      threadId: firstMessage.thread_id,
-      beforeCreatedAt: firstMessage.created_at,
-      limit: 20,
-    });
+    const result = await runAnalysisInWorker(conversationKey, messages);
 
-    // Build prompt with context
-    const promptMessages = buildConversationPromptMessages({
-      contextBefore,
-      targets: messages,
-      maxTokens: MAX_CONTEXT_TOKENS,
-    });
-
-    const contextText = promptMessages.join("\n");
-
-    // Run moderation analysis
-    const result = await runModerationAnalysis({
-      targets: messages,
-      contextText,
-    });
-
-    // Store results
-    const analyzedRows: MessageRecord[] = [];
-    for (const analysisResult of result.results) {
-      const row = await updateMessageAIAnalysis(analysisResult.messageId, {
-        status: analysisResult.status,
-        flags: JSON.stringify(analysisResult.flags),
-        score: analysisResult.score,
-        raw: JSON.stringify(result.raw),
-        analysis: analysisResult.analysis,
-        analyzedAt: Date.now(),
-        error: null,
-      });
-      if (row) {
-        analyzedRows.push(row);
-      }
-    }
-
-    // Broadcast analyzed messages
-    for (const row of analyzedRows) {
+    for (const row of result.rows) {
       getModerationBroadcaster()?.messageAnalyzed(row);
     }
 
-    // Clear error cooldown on success
+    if (!result.ok) {
+      lastError = result.error ?? "Analysis worker failed";
+      conversationErrorCooldown.set(
+        conversationKey,
+        Date.now() + ERROR_COOLDOWN_MS,
+      );
+      logger.error(
+        { conversationKey, error: lastError },
+        "Batch analysis failed",
+      );
+      return;
+    }
+
     conversationErrorCooldown.delete(conversationKey);
 
     logger.info(
@@ -141,13 +117,15 @@ async function processBatch(
     );
   } catch (error) {
     lastError = error instanceof Error ? error.message : String(error);
-
+    conversationErrorCooldown.set(
+      conversationKey,
+      Date.now() + ERROR_COOLDOWN_MS,
+    );
     logger.error(
       { conversationKey, error: lastError },
-      "Batch analysis failed",
+      "Analysis worker failed",
     );
 
-    // Mark all messages in batch as error
     for (const msg of messages) {
       const row = await updateMessageAIAnalysis(msg.id, {
         status: "error",
@@ -158,20 +136,35 @@ async function processBatch(
         analyzedAt: Date.now(),
         error: lastError,
       });
-      if (row) {
-        getModerationBroadcaster()?.messageAnalyzed(row);
-      }
+      if (row) getModerationBroadcaster()?.messageAnalyzed(row);
     }
-
-    // Set error cooldown for this conversation
-    conversationErrorCooldown.set(
-      conversationKey,
-      Date.now() + ERROR_COOLDOWN_MS,
-    );
   } finally {
     activeRequests--;
     conversationProcessing.delete(conversationKey);
   }
+}
+
+async function runAnalysisInWorker(
+  conversationKey: string,
+  messages: MessageRecord[],
+): Promise<AnalysisWorkerResponse> {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(new URL("./aiAnalysisWorker.ts", import.meta.url));
+
+    worker.once("message", (response: AnalysisWorkerResponse) => {
+      worker.terminate().catch((error) => {
+        logger.warn({ error }, "Failed to terminate analysis worker");
+      });
+      resolve(response);
+    });
+    worker.once("error", reject);
+    worker.once("exit", (code) => {
+      if (code !== 0) {
+        reject(new Error(`Analysis worker exited with code ${code}`));
+      }
+    });
+    worker.postMessage({ conversationKey, messages });
+  });
 }
 
 /**

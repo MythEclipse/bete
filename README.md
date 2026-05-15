@@ -8,7 +8,8 @@ Stack utama: Node.js, pnpm, TypeScript, `discord.js-selfbot-v13`, `@discordjs/vo
 
 - Node.js versi modern yang kompatibel dengan TypeScript dan Vite.
 - pnpm 10.x. Repo ini dipin ke `pnpm@10.25.0`.
-- FFmpeg tersedia di `PATH` untuk proses muxing audio.
+- FFmpeg tersedia di `PATH` untuk proses muxing audio dan playback media.
+- `yt-dlp` tersedia di `PATH` untuk resolve audio YouTube, search result YouTube, dan Spotify track.
 - Native audio dependencies dapat dibuild di mesin lokal (`@discordjs/opus`, `better-sqlite3`, `sodium-native`).
 
 Install FFmpeg:
@@ -20,6 +21,14 @@ sudo apt install ffmpeg
 # Arch
 sudo pacman -S ffmpeg
 ```
+
+Install `yt-dlp`:
+
+```bash
+pnpm run install:yt-dlp
+```
+
+Script installer akan memakai package manager yang tersedia (`pacman`, `apt-get`, `dnf`, `brew`) atau fallback ke `pipx`/`pip`.
 
 ## Setup
 
@@ -76,6 +85,9 @@ pnpm run test
 
 # Build frontend + TypeScript
 pnpm run build
+
+# Install external yt-dlp CLI for YouTube/search/Spotify track playback
+pnpm run install:yt-dlp
 ```
 
 ## Database
@@ -104,7 +116,8 @@ pnpm run db:studio
 - Attachment capture dan upload ke endpoint Picser.
 - SQLite/PostgreSQL via Drizzle ORM.
 - REST API dan WebSocket untuk dashboard.
-- Dashboard React untuk pesan, gambar, voice, dan moderation review.
+- Dashboard React untuk pesan, gambar, voice, media playback, dan moderation review.
+- Media playback dari direct URL, file lokal, YouTube URL, search terms, dan Spotify track URL.
 - Metrics Prometheus di endpoint server.
 - Retry dengan backoff untuk operasi eksternal.
 - AI moderation analysis opsional via konfigurasi `AI_*`.
