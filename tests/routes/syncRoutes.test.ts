@@ -45,7 +45,8 @@ describe("createSyncRoutes", () => {
     expect(json).toHaveBeenCalledWith({
       success: true,
       channelId: "selected-channel",
-      messagesSync: 3,
+      messagesSync: 0,
+      queued: true,
       skipped: false,
     });
     expect(next).not.toHaveBeenCalled();
@@ -91,6 +92,7 @@ describe("createSyncRoutes", () => {
       success: true,
       channelId: "selected-channel",
       messagesSync: 0,
+      queued: false,
       skipped: true,
     });
   });

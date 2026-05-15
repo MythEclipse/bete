@@ -50,28 +50,37 @@ export function createSyncRoutes(client: Client): Router {
           success: true,
           channelId,
           messagesSync: 0,
+          queued: false,
           skipped: true,
         });
         return;
       }
 
-      logger.info({ guildId, channelId }, "Starting backlog sync");
+      logger.info({ guildId, channelId }, "Queueing backlog sync");
 
-      const count = await syncSelectedChannelBacklog(
-        client,
-        guildId,
-        channelId,
-      );
-
-      logger.info(
-        { guildId, channelId, messagesSync: count },
-        "Backlog sync complete",
-      );
+      syncSelectedChannelBacklog(client, guildId, channelId)
+        .then((count) => {
+          logger.info(
+            { guildId, channelId, messagesSync: count },
+            "Backlog sync complete",
+          );
+        })
+        .catch((error) => {
+          logger.warn(
+            {
+              guildId,
+              channelId,
+              error: error instanceof Error ? error.message : String(error),
+            },
+            "Backlog sync failed",
+          );
+        });
 
       res.json({
         success: true,
         channelId,
-        messagesSync: count,
+        messagesSync: 0,
+        queued: true,
         skipped: false,
       });
     } catch (error) {
