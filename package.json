@@ -23,6 +23,7 @@
   "dependencies": {
     "@discordjs/opus": "^0.10.0",
     "@discordjs/voice": "^0.19.1",
+    "@dank074/discord-video-stream": "workspace:*",
     "@snazzah/davey": "^0.1.10",
     "@types/pg": "^8.20.0",
     "@vitejs/plugin-react": "^6.0.2",
