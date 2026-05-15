@@ -7,11 +7,14 @@ import type {
   ModerationWsEvent,
 } from "./types";
 
-type ClientLike = Pick<WebSocket, "readyState" | "send">;
+export type BroadcasterClient = Pick<WebSocket, "readyState" | "send">;
 
 const log = createChildLogger("broadcaster");
 
-function sendJson(clients: Set<ClientLike>, event: ModerationWsEvent): void {
+function sendJson(
+  clients: Set<BroadcasterClient>,
+  event: ModerationWsEvent,
+): void {
   const payload = JSON.stringify({ ...event, timestamp: Date.now() });
   for (const client of clients) {
     if (client.readyState === 1) {
@@ -28,14 +31,14 @@ function sendJson(clients: Set<ClientLike>, event: ModerationWsEvent): void {
 }
 
 export function createBroadcaster() {
-  const clients = new Set<ClientLike>();
+  const clients = new Set<BroadcasterClient>();
 
   return {
-    addClient(client: ClientLike) {
+    addClient(client: BroadcasterClient) {
       clients.add(client);
       log.debug({ clientCount: clients.size }, "Client added");
     },
-    removeClient(client: ClientLike) {
+    removeClient(client: BroadcasterClient) {
       clients.delete(client);
       log.debug({ clientCount: clients.size }, "Client removed");
     },

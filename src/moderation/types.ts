@@ -1,8 +1,8 @@
-import type { ModerationBroadcaster } from "./broadcaster";
+import type { BroadcasterClient, ModerationBroadcaster } from "./broadcaster";
 
 export type AIStatus = "pending" | "clean" | "warn" | "flagged" | "error";
 
-export type { ModerationBroadcaster };
+export type { BroadcasterClient, ModerationBroadcaster };
 
 export interface MessageRecord {
   id: string;

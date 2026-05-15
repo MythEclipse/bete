@@ -9,9 +9,21 @@ import {
   getPendingMessagesByConversation,
   updateMessageAIAnalysis,
 } from "./messageStore";
-import type { AnalysisQueueStatus, MessageRecord } from "./types";
+import type {
+  AnalysisQueueStatus,
+  MessageRecord,
+  ModerationBroadcaster,
+} from "./types";
 
 const logger = createChildLogger("ai-analyzer");
+
+type ModerationGlobal = typeof globalThis & {
+  moderationBroadcaster?: ModerationBroadcaster;
+};
+
+function getModerationBroadcaster(): ModerationBroadcaster | undefined {
+  return (globalThis as ModerationGlobal).moderationBroadcaster;
+}
 
 // Debounce state per conversation key
 const conversationDebounceTimers = new Map<string, NodeJS.Timeout>();
@@ -117,7 +129,7 @@ async function processBatch(
 
     // Broadcast analyzed messages
     for (const row of analyzedRows) {
-      (globalThis as any).moderationBroadcaster?.messageAnalyzed(row);
+      getModerationBroadcaster()?.messageAnalyzed(row);
     }
 
     // Clear error cooldown on success
@@ -147,7 +159,7 @@ async function processBatch(
         error: lastError,
       });
       if (row) {
-        (globalThis as any).moderationBroadcaster?.messageAnalyzed(row);
+        getModerationBroadcaster()?.messageAnalyzed(row);
       }
     }
 

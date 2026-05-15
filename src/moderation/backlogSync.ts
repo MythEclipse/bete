@@ -1,12 +1,25 @@
-import type { Client, Message } from "discord.js-selfbot-v13";
+import type { Channel, Client, Message } from "discord.js-selfbot-v13";
 import { config } from "../config";
 import { createChildLogger } from "../logger";
 import { captureMessage } from "./messageCapture";
 
 const logger = createChildLogger("backlog-sync");
 
+type BacklogChannel = Channel & {
+  messages: {
+    fetch(options: { limit: number; before?: string }): Promise<{
+      size: number;
+      values(): IterableIterator<Message>;
+    }>;
+  };
+};
+
+function hasMessageBacklog(channel: Channel): channel is BacklogChannel {
+  return "messages" in channel;
+}
+
 async function syncChannelMessages(
-  channel: any,
+  channel: BacklogChannel,
   cutoffTime: number,
 ): Promise<number> {
   let before: string | undefined;
@@ -77,6 +90,10 @@ export async function syncSelectedChannelBacklog(
     logger.warn({ guildId, channelId }, "Channel not found for backlog sync");
     return 0;
   }
+  if (!hasMessageBacklog(channel)) {
+    logger.warn({ guildId, channelId }, "Channel cannot fetch message backlog");
+    return 0;
+  }
 
   const cutoffTime = Date.now() - config.BACKLOG_SYNC_HOURS * 60 * 60 * 1000;
   logger.info(
@@ -85,7 +102,7 @@ export async function syncSelectedChannelBacklog(
   );
 
   try {
-    const count = await syncChannelMessages(channel as any, cutoffTime);
+    const count = await syncChannelMessages(channel, cutoffTime);
     logger.info(
       { channelId, count },
       "Backlog sync completed for selected channel",

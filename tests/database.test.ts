@@ -4,9 +4,9 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 const originalEnv = process.env;
 
 describe("Drizzle ORM Database", () => {
-  let config: any;
-  let drizzle: any;
-  let logger: any;
+  let config: typeof import("../src/config").config;
+  let drizzle: typeof import("../src/database/drizzle");
+  let logger: ReturnType<typeof import("../src/logger").createChildLogger>;
 
   beforeAll(async () => {
     // Set up environment for config loading

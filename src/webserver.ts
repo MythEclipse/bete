@@ -10,6 +10,7 @@ import { AppError } from "./errors";
 import { createChildLogger, logger } from "./logger";
 import { getMetrics, uptimeGauge } from "./metrics";
 import { createBroadcaster } from "./moderation/broadcaster";
+import type { ModerationBroadcaster } from "./moderation/types";
 import { getPersistedValue, setPersistedValue } from "./muxer-queue";
 import { discordPlayer } from "./player";
 import { createAnalysisRoutes } from "./routes/analysisRoutes";
@@ -25,6 +26,15 @@ const activeUsers = new Map<
   string,
   { username: string; avatar: string; speaking: boolean }
 >();
+
+type VoiceGlobals = typeof globalThis & {
+  moderationBroadcaster?: ModerationBroadcaster;
+  broadcastPcmToWeb?: (chunk: Buffer, userId: string) => void;
+  updateActiveUser?: (
+    userId: string,
+    data: { username: string; avatar: string; speaking: boolean },
+  ) => void;
+};
 
 interface SharedUIState {
   selectedGuild: string;
@@ -118,7 +128,7 @@ export async function startWebserver(
 
   // Create broadcaster instance
   const broadcaster = createBroadcaster();
-  (globalThis as any).moderationBroadcaster = broadcaster;
+  (globalThis as VoiceGlobals).moderationBroadcaster = broadcaster;
 
   // Security headers. CSP disabled because the current static UI uses inline scripts/styles.
   app.use(
@@ -196,7 +206,10 @@ export async function startWebserver(
   app.use("/api", createSyncRoutes(_client));
 
   // Inbound: Discord PCM → tagged chunks → browser
-  (global as any).broadcastPcmToWeb = (chunk: Buffer, userId: string) => {
+  (globalThis as VoiceGlobals).broadcastPcmToWeb = (
+    chunk: Buffer,
+    userId: string,
+  ) => {
     let hash = 0;
     for (let i = 0; i < userId.length; i++) {
       hash = (hash << 5) - hash + userId.charCodeAt(i);
@@ -210,7 +223,7 @@ export async function startWebserver(
     }
   };
 
-  (global as any).updateActiveUser = (
+  (globalThis as VoiceGlobals).updateActiveUser = (
     userId: string,
     data: { username: string; avatar: string; speaking: boolean },
   ) => {
@@ -327,7 +340,7 @@ export async function startWebserver(
     );
     ws.send(JSON.stringify({ type: "ui_state", state: getSharedUIState() }));
 
-    ws.on("message", (data: any) => {
+    ws.on("message", (data: Buffer | ArrayBuffer | Buffer[]) => {
       if (!Buffer.isBuffer(data)) return;
       lastBrowserAudioTime = Date.now();
 

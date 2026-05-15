@@ -8,14 +8,50 @@ import { createChildLogger } from "./logger";
 
 const logger = createChildLogger("muxer-queue");
 
-// Type alias for backward compatibility
-export type SqliteDatabase = any;
+interface QueryBuilder<T = unknown> extends PromiseLike<T> {
+  from(...args: unknown[]): QueryBuilder<T>;
+  where(...args: unknown[]): QueryBuilder<T>;
+  orderBy(...args: unknown[]): QueryBuilder<T>;
+  limit(...args: unknown[]): QueryBuilder<T>;
+  values(...args: unknown[]): QueryBuilder<T>;
+  onConflictDoNothing(...args: unknown[]): QueryBuilder<T>;
+  onConflictDoUpdate(...args: unknown[]): QueryBuilder<T>;
+  set(...args: unknown[]): QueryBuilder<T>;
+  groupBy(...args: unknown[]): QueryBuilder<T>;
+}
+
+export interface SqliteDatabase {
+  select<T = unknown[]>(...args: unknown[]): QueryBuilder<T>;
+  insert(...args: unknown[]): QueryBuilder<unknown>;
+  update(...args: unknown[]): QueryBuilder<unknown>;
+  delete(...args: unknown[]): QueryBuilder<unknown>;
+}
+
+function db(): SqliteDatabase {
+  return getDrizzleDatabase() as unknown as SqliteDatabase;
+}
 
 export interface MuxerJobData {
   userId: string;
   sessionId: string;
   recordingsDir: string;
   outputDir: string;
+}
+
+interface StoredJobRow {
+  id: string;
+  data: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  attempts: number;
+  maxAttempts: number;
+  createdAt: number;
+  updatedAt: number;
+  error: string | null;
+}
+
+interface JobStatsRow {
+  status: "pending" | "processing" | "completed" | "failed";
+  count: number | string | { count: number | string };
 }
 
 interface StoredJob {
@@ -31,7 +67,7 @@ interface StoredJob {
 
 // Export getDatabase for backward compatibility with webserver.ts
 export function getDatabase(): SqliteDatabase {
-  return getDrizzleDatabase() as any;
+  return db();
 }
 
 export async function getPersistedValue<T>(
@@ -39,10 +75,10 @@ export async function getPersistedValue<T>(
   fallback: T,
 ): Promise<T> {
   await initializeDatabase();
-  const db = getDrizzleDatabase() as any;
+  const database = db();
 
-  const row = await db
-    .select()
+  const row = await database
+    .select<Array<{ value: string }>>()
     .from(uiStateTable)
     .where(eq(uiStateTable.key, key))
     .limit(1);
@@ -61,9 +97,9 @@ export async function setPersistedValue(
   value: unknown,
 ): Promise<void> {
   await initializeDatabase();
-  const db = getDrizzleDatabase() as any;
+  const database = db();
 
-  await db
+  await database
     .insert(uiStateTable)
     .values({
       key,
@@ -82,12 +118,12 @@ export async function setPersistedValue(
 export async function enqueueMuxerJob(data: MuxerJobData): Promise<string> {
   try {
     await initializeDatabase();
-    const db = getDrizzleDatabase() as any;
+    const database = db();
 
     const jobId = `${data.userId}-${data.sessionId}`;
     const now = Date.now();
 
-    await db
+    await database
       .insert(muxerJobsTable)
       .values({
         id: jobId,
@@ -120,16 +156,16 @@ export async function enqueueMuxerJob(data: MuxerJobData): Promise<string> {
 
 export async function getPendingJobs(): Promise<StoredJob[]> {
   await initializeDatabase();
-  const db = getDrizzleDatabase() as any;
+  const database = db();
 
-  const rows = await db
-    .select()
+  const rows = await database
+    .select<StoredJobRow[]>()
     .from(muxerJobsTable)
     .where(eq(muxerJobsTable.status, "pending"))
     .orderBy(asc(muxerJobsTable.createdAt))
     .limit(10);
 
-  return rows.map((row: any) => ({
+  return rows.map((row) => ({
     id: row.id,
     data: row.data,
     status: row.status as "pending" | "processing" | "completed" | "failed",
@@ -147,11 +183,11 @@ export async function updateJobStatus(
   error?: string,
 ): Promise<void> {
   await initializeDatabase();
-  const db = getDrizzleDatabase() as any;
+  const database = db();
   const now = Date.now();
 
   if (status === "failed") {
-    await db
+    await database
       .update(muxerJobsTable)
       .set({
         status,
@@ -161,7 +197,7 @@ export async function updateJobStatus(
       })
       .where(eq(muxerJobsTable.id, jobId));
   } else {
-    await db
+    await database
       .update(muxerJobsTable)
       .set({
         status,
@@ -175,10 +211,10 @@ export async function updateJobStatus(
 
 export async function retryFailedJob(jobId: string): Promise<boolean> {
   await initializeDatabase();
-  const db = getDrizzleDatabase() as any;
+  const database = db();
 
-  const jobs = await db
-    .select()
+  const jobs = await database
+    .select<StoredJobRow[]>()
     .from(muxerJobsTable)
     .where(eq(muxerJobsTable.id, jobId))
     .limit(1);
@@ -198,7 +234,7 @@ export async function retryFailedJob(jobId: string): Promise<boolean> {
     return false;
   }
 
-  await db
+  await database
     .update(muxerJobsTable)
     .set({
       status: "pending",
@@ -215,10 +251,10 @@ export async function cleanupCompletedJobs(
   olderThanMs: number = 24 * 60 * 60 * 1000,
 ): Promise<number> {
   await initializeDatabase();
-  const db = getDrizzleDatabase() as any;
+  const database = db();
   const cutoffTime = Date.now() - olderThanMs;
 
-  const result = await db
+  const result = await database
     .delete(muxerJobsTable)
     .where(
       and(
@@ -228,8 +264,8 @@ export async function cleanupCompletedJobs(
     );
 
   const deletedCount =
-    typeof result === "object" && "rowsAffected" in result
-      ? result.rowsAffected
+    typeof result === "object" && result !== null && "rowsAffected" in result
+      ? Number(result.rowsAffected)
       : 0;
 
   logger.info({ deletedCount }, "Cleaned up completed jobs");
@@ -244,10 +280,10 @@ export async function getJobStats(): Promise<{
   failed: number;
 }> {
   await initializeDatabase();
-  const db = getDrizzleDatabase() as any;
+  const database = db();
 
-  const rows = await db
-    .select({
+  const rows = await database
+    .select<JobStatsRow[]>({
       status: muxerJobsTable.status,
       count: sql<number>`COUNT(*)`,
     })
@@ -264,7 +300,7 @@ export async function getJobStats(): Promise<{
   for (const row of rows) {
     const count =
       typeof row.count === "object" && "count" in row.count
-        ? (row.count as any).count
+        ? Number((row.count as { count: number | string }).count)
         : Number(row.count);
     if (row.status === "pending") stats.pending = count;
     else if (row.status === "processing") stats.processing = count;

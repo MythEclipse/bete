@@ -88,13 +88,16 @@ export class VoiceController {
     await guild.channels.fetch().catch(() => null);
 
     const threads: ChannelSummary[] = [];
+    type ThreadFetchResult = {
+      threads: Map<string, { id: string; name: string; type: string }>;
+    };
     for (const channel of guild.channels.cache.values()) {
       const threadParent = channel as typeof channel & {
         threads?: {
           fetch: (options: {
             archived: boolean;
             limit: number;
-          }) => Promise<any>;
+          }) => Promise<ThreadFetchResult>;
         };
       };
       if (!threadParent.threads?.fetch) continue;

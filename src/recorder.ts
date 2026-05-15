@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import {
+  type DiscordGatewayAdapterCreator,
   EndBehaviorType,
   entersState,
   getVoiceConnection,
@@ -41,7 +42,8 @@ export async function startRecording(
   const connection = joinVoiceChannel({
     channelId: channel.id,
     guildId: channel.guild.id,
-    adapterCreator: channel.guild.voiceAdapterCreator as any,
+    adapterCreator: channel.guild
+      .voiceAdapterCreator as DiscordGatewayAdapterCreator,
     selfDeaf: false,
     selfMute: false,
     debug: true,

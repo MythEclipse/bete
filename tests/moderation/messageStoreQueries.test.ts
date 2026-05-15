@@ -16,6 +16,14 @@ import {
 } from "../../src/moderation/messageStore";
 import type { MessageRecord } from "../../src/moderation/types";
 
+interface TestDatabase {
+  run(sql: string): void;
+}
+
+function getTestDatabase(): TestDatabase {
+  return getDatabase() as unknown as TestDatabase;
+}
+
 const logger = createChildLogger("messageStoreQueries.test");
 
 describe("message cursor helpers", () => {
@@ -36,7 +44,7 @@ describe("message query integration tests", () => {
   beforeAll(async () => {
     await initializeDatabase();
     // Create tables using Drizzle schema (SQLite doesn't support migrations with PostgreSQL syntax)
-    const db = getDatabase() as any;
+    const db = getTestDatabase();
     try {
       // Create messages table
       await db.run(`
@@ -75,7 +83,7 @@ describe("message query integration tests", () => {
   beforeEach(async () => {
     // Clear messages table before each test
     try {
-      const db = getDatabase() as any;
+      const db = getTestDatabase();
       await db.run(`DELETE FROM "messages"`);
     } catch (error) {
       logger.debug({ error }, "Could not clear messages table");
