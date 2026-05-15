@@ -9,7 +9,7 @@ export class MediaQueue {
   private readonly items: MediaQueueItem[] = [];
 
   constructor(
-    private readonly createId = () => crypto.randomUUID(),
+    private readonly createId: () => string = () => crypto.randomUUID(),
     private readonly now = () => Date.now(),
   ) {}
 
