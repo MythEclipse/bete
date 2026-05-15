@@ -32,6 +32,20 @@ describe("MediaController", () => {
     } satisfies Partial<AppError>);
   });
 
+  it("rejects queue playback while browser streaming is active", async () => {
+    const controller = new MediaController({
+      isVoiceConnected: () => true,
+      isBrowserStreaming: () => true,
+      resolveMediaSource: async () => source("https://example.com/song.mp3"),
+      musicPlayer: { play: vi.fn() },
+    });
+
+    await expect(controller.queue("https://example.com/song.mp3")).rejects.toMatchObject({
+      code: "BROWSER_STREAM_ACTIVE",
+      statusCode: 409,
+    } satisfies Partial<AppError>);
+  });
+
   it("queues and starts the first item", async () => {
     const done = deferred();
     const playback: MusicPlayback = { done: done.promise, stop: vi.fn() };
@@ -74,13 +88,37 @@ describe("MediaController", () => {
     expect(controller.getState().current?.title).toBe("second.mp3");
   });
 
+  it("skips current playback and starts the next item", async () => {
+    const currentStop = vi.fn();
+    const nextPlayback = deferred();
+    const musicPlayer: MusicPlayer = {
+      play: vi
+        .fn()
+        .mockReturnValueOnce({ done: new Promise<void>(() => {}), stop: currentStop })
+        .mockReturnValueOnce({ done: nextPlayback.promise, stop: vi.fn() }),
+    };
+    const controller = new MediaController({
+      isVoiceConnected: () => true,
+      isBrowserStreaming: () => false,
+      resolveMediaSource: async (input) => source(input),
+      musicPlayer,
+    });
+    await controller.queue("https://example.com/first.mp3");
+    await controller.queue("https://example.com/second.mp3");
+
+    const state = await controller.skip();
+
+    expect(currentStop).toHaveBeenCalled();
+    expect(state.current?.title).toBe("second.mp3");
+  });
+
   it("stops current playback and clears the queue", async () => {
     const stop = vi.fn();
     const controller = new MediaController({
       isVoiceConnected: () => true,
       isBrowserStreaming: () => false,
       resolveMediaSource: async (input) => source(input),
-      musicPlayer: { play: vi.fn(() => ({ done: new Promise(() => {}), stop })) },
+      musicPlayer: { play: vi.fn(() => ({ done: new Promise<void>(() => {}), stop })) },
     });
     await controller.queue("https://example.com/song.mp3");
 
