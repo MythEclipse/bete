@@ -6,7 +6,7 @@ import type { MediaMode } from "../media/mediaTypes";
 
 export type MediaRouteController = Pick<
   MediaController,
-  "getState" | "queue" | "skip" | "stop"
+  "getState" | "queue" | "skip" | "stop" | "setMusicVolume"
 >;
 
 export interface MediaRouteOptions {
@@ -85,6 +85,29 @@ export function createMediaRoutes(
     async (_req: Request, res: Response, next: NextFunction) => {
       try {
         res.json(await controller.stop());
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
+  router.post(
+    "/media/volume",
+    adminAuth,
+    async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const { volume } = req.body as { volume?: number };
+        if (typeof volume !== "number" || Number.isNaN(volume)) {
+          throw new AppError("Volume is required", "INVALID_VOLUME", 400);
+        }
+        if (volume < 0 || volume > 1) {
+          throw new AppError(
+            "Volume must be between 0 and 1",
+            "INVALID_VOLUME",
+            400,
+          );
+        }
+        res.json(await controller.setMusicVolume(volume));
       } catch (error) {
         next(error);
       }

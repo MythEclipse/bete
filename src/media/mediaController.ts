@@ -21,6 +21,9 @@ export interface MediaControllerDependencies {
   musicPlayer?: MusicPlayer;
   screenController?: ScreenShareController;
   onStateChange?: (state: MediaState) => void;
+  initialMusicVolume?: number;
+  onMusicVolumeChange?: (volume: number) => void | Promise<void>;
+  setMusicVolume?: (volume: number) => void;
 }
 
 export class MediaController {
@@ -31,9 +34,18 @@ export class MediaController {
   private skipInProgress = false;
   private screenPlayback: ScreenSharePlayback | null = null;
   private activeMode: MediaMode | null = null;
+  private musicVolume: number;
+  private readonly setPlayerMusicVolume: (volume: number) => void;
 
   constructor(private readonly dependencies: MediaControllerDependencies = {}) {
     this.musicPlayer = dependencies.musicPlayer ?? createMusicPlayer();
+    this.setPlayerMusicVolume =
+      dependencies.setMusicVolume ??
+      ((volume) => {
+        discordPlayer.setMusicVolume(volume);
+      });
+    this.musicVolume = normalizeVolume(dependencies.initialMusicVolume, 1);
+    this.setPlayerMusicVolume(this.musicVolume);
   }
 
   getState(): MediaState {
@@ -42,8 +54,18 @@ export class MediaController {
       playing:
         this.activeMode === "screen" || snapshot.current?.status === "playing",
       activeMode: this.activeMode ?? snapshot.current?.mode ?? null,
+      musicVolume: this.musicVolume,
       ...snapshot,
     };
+  }
+
+  async setMusicVolume(volume: number): Promise<MediaState> {
+    const nextVolume = normalizeVolume(volume, this.musicVolume);
+    if (this.musicVolume === nextVolume) return this.emitState();
+    this.musicVolume = nextVolume;
+    this.setPlayerMusicVolume(nextVolume);
+    await this.dependencies.onMusicVolumeChange?.(nextVolume);
+    return this.emitState();
   }
 
   async queue(
@@ -200,4 +222,9 @@ export class MediaController {
     this.dependencies.onStateChange?.(state);
     return state;
   }
+}
+
+function normalizeVolume(value: number | undefined, fallback: number): number {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(0, Math.min(1, value as number));
 }

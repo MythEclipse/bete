@@ -1,8 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
-import { getMediaStatus, queueMedia, skipMedia, stopMedia } from "../api/media";
+import {
+  getMediaStatus,
+  queueMedia,
+  setMediaVolume,
+  skipMedia,
+  stopMedia,
+} from "../api/media";
 import type { MediaMode, MediaState } from "../types/media";
 
-const emptyMediaState: MediaState = { playing: false, current: null, queue: [] };
+const emptyMediaState: MediaState = {
+  playing: false,
+  musicVolume: 1,
+  current: null,
+  queue: [],
+};
 
 export function useMediaControl() {
   const [mediaState, setMediaState] = useState<MediaState>(emptyMediaState);
@@ -55,9 +66,32 @@ export function useMediaControl() {
     }
   }, []);
 
+  const setVolume = useCallback(async (volume: number) => {
+    setError(null);
+    try {
+      const state = await setMediaVolume(volume);
+      setMediaState(state);
+      return state;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
+      throw err;
+    }
+  }, []);
+
   useEffect(() => {
     refreshMedia().catch((err) => setError(err instanceof Error ? err.message : String(err)));
   }, [refreshMedia]);
 
-  return { mediaState, setMediaState, loading, error, refreshMedia, enqueue, skip, stop };
+  return {
+    mediaState,
+    setMediaState,
+    loading,
+    error,
+    refreshMedia,
+    enqueue,
+    skip,
+    stop,
+    setVolume,
+  };
 }

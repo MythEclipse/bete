@@ -114,6 +114,7 @@ export interface MediaQueueItem {
 
 export interface MediaState {
   playing: boolean;
+  musicVolume: number;
   current: MediaQueueItem | null;
   queue: MediaQueueItem[];
 }

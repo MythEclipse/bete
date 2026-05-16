@@ -1,5 +1,6 @@
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { spawn as nodeSpawn } from "node:child_process";
+import { StreamType } from "@discordjs/voice";
 import { discordPlayer } from "../player";
 import type {
   DiscordAudioPlayer,
@@ -30,7 +31,10 @@ export function createMusicPlayer(
       }) as unknown as ChildProcessWithoutNullStreams;
       proc.stderr.resume();
 
-      audioPlayer.playStream(proc.stdout, "music");
+      audioPlayer.playStream(proc.stdout, "music", {
+        inputType: StreamType.Raw,
+        inlineVolume: true,
+      });
 
       let stopped = false;
       let released = false;
@@ -81,13 +85,13 @@ export function buildFfmpegArgs(source: string): string[] {
     source,
     "-vn",
     "-acodec",
-    "libopus",
+    "pcm_s16le",
     "-ar",
     "48000",
     "-ac",
     "2",
     "-f",
-    "ogg",
+    "s16le",
     "pipe:1",
   ];
 }

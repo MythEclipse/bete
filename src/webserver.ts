@@ -60,6 +60,10 @@ interface SharedUIState {
   isStreaming: boolean;
 }
 
+interface MediaSettings {
+  musicVolume: number;
+}
+
 type SharedUIStatePatch = Partial<SharedUIState> & {
   selectedGuild?: string;
 };
@@ -72,6 +76,10 @@ const defaultSharedUIState: SharedUIState = {
   activeTab: "voice",
   isListening: false,
   isStreaming: false,
+};
+
+const defaultMediaSettings: MediaSettings = {
+  musicVolume: 1,
 };
 
 let sharedUIState: SharedUIState = { ...defaultSharedUIState };
@@ -99,6 +107,17 @@ async function initializeSharedUIState() {
   sharedUIState = normalizeSharedUIState(
     await getPersistedValue("web-ui-state", defaultSharedUIState),
   );
+}
+
+async function initializeMediaSettings(): Promise<MediaSettings> {
+  const stored = await getPersistedValue(
+    "media-settings",
+    defaultMediaSettings,
+  );
+  return {
+    ...defaultMediaSettings,
+    ...(stored as MediaSettings),
+  };
 }
 
 function getSharedUIState(): SharedUIState {
@@ -174,6 +193,7 @@ export async function startWebserver(
   voiceController: VoiceController,
 ) {
   await initializeSharedUIState();
+  let mediaSettings = await initializeMediaSettings();
 
   const app = express();
   const server = http.createServer(app);
@@ -200,6 +220,11 @@ export async function startWebserver(
     isBrowserStreaming: () => sharedUIState.isStreaming,
     screenController,
     onStateChange: (state) => broadcaster.mediaState(state),
+    initialMusicVolume: mediaSettings.musicVolume,
+    onMusicVolumeChange: async (volume) => {
+      mediaSettings = { ...mediaSettings, musicVolume: volume };
+      await setPersistedValue("media-settings", mediaSettings);
+    },
   });
 
   // Security headers. CSP disabled because the current static UI uses inline scripts/styles.

@@ -11,9 +11,18 @@ interface MediaPanelProps {
   onStartScreen: (source: string) => void;
   onSkip: () => void;
   onStop: () => void;
+  onVolumeChange: (volume: number) => void;
 }
 
-export function MediaPanel({ state, loading, onQueueMusic, onStartScreen, onSkip, onStop }: MediaPanelProps) {
+export function MediaPanel({
+  state,
+  loading,
+  onQueueMusic,
+  onStartScreen,
+  onSkip,
+  onStop,
+  onVolumeChange,
+}: MediaPanelProps) {
   return (
     <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
       <Tabs defaultValue="music" className="min-w-0">
@@ -22,7 +31,14 @@ export function MediaPanel({ state, loading, onQueueMusic, onStartScreen, onSkip
           <TabsTrigger value="screen">Screen Share</TabsTrigger>
         </TabsList>
         <TabsContent value="music">
-          <MusicPlayer loading={loading} onQueue={onQueueMusic} onSkip={onSkip} onStop={onStop} />
+          <MusicPlayer
+            loading={loading}
+            volume={state.musicVolume}
+            onVolumeChange={onVolumeChange}
+            onQueue={onQueueMusic}
+            onSkip={onSkip}
+            onStop={onStop}
+          />
         </TabsContent>
         <TabsContent value="screen">
           <ScreenShare loading={loading} onStart={onStartScreen} onSkip={onSkip} onStop={onStop} />

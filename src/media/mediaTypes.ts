@@ -1,4 +1,5 @@
 import type { Readable } from "node:stream";
+import type { StreamType } from "@discordjs/voice";
 
 export type MediaMode = "music" | "screen";
 export type MediaSourceKind =
@@ -26,6 +27,7 @@ export interface MediaQueueItem extends ResolvedMediaSource {
 export interface MediaState {
   playing: boolean;
   activeMode: MediaMode | null;
+  musicVolume: number;
   current: MediaQueueItem | null;
   queue: MediaQueueItem[];
 }
@@ -56,11 +58,23 @@ export interface ScreenShareController {
 
 export type DiscordPlayerOwner = "none" | "browser-bridge" | "music" | "screen";
 
+export interface DiscordPlayOptions {
+  inputType?: StreamType;
+  inlineVolume?: boolean;
+  volume?: number;
+}
+
 export interface DiscordAudioPlayer {
   getOwner(): DiscordPlayerOwner;
   isConnected(): boolean;
-  playStream(stream: Readable, owner: DiscordPlayerOwner): void;
+  playStream(
+    stream: Readable,
+    owner: DiscordPlayerOwner,
+    options?: DiscordPlayOptions,
+  ): void;
   pause(owner?: DiscordPlayerOwner): void;
   unpause(owner?: DiscordPlayerOwner): boolean;
   stop(owner?: DiscordPlayerOwner): void;
+  getMusicVolume(): number;
+  setMusicVolume(volume: number): void;
 }

@@ -5,6 +5,7 @@ type Spawn = typeof nodeSpawn;
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
+import { StreamType } from "@discordjs/voice";
 import type {
   DiscordAudioPlayer,
   DiscordPlayerOwner,
@@ -23,13 +24,15 @@ class FakeProcess extends EventEmitter {
 }
 
 describe("createMusicPlayer", () => {
-  it("spawns ffmpeg as Ogg Opus and passes stdout to Discord", async () => {
+  it("spawns ffmpeg as raw PCM and passes stdout to Discord", async () => {
     const proc = new FakeProcess();
     const spawn = vi.fn(() => proc);
     const discordPlayer: DiscordAudioPlayer = {
       isConnected: () => true,
       playStream: vi.fn(),
       getOwner: vi.fn((): DiscordPlayerOwner => "none"),
+      getMusicVolume: vi.fn(() => 1),
+      setMusicVolume: vi.fn(),
       pause: vi.fn(),
       unpause: vi.fn(() => true),
       stop: vi.fn(),
@@ -57,18 +60,21 @@ describe("createMusicPlayer", () => {
         "https://example.com/song.mp3",
         "-vn",
         "-acodec",
-        "libopus",
+        "pcm_s16le",
         "-ar",
         "48000",
         "-ac",
         "2",
         "-f",
-        "ogg",
+        "s16le",
         "pipe:1",
       ],
       { stdio: ["ignore", "pipe", "pipe"] },
     );
-    expect(discordPlayer.playStream).toHaveBeenCalledWith(proc.stdout, "music");
+    expect(discordPlayer.playStream).toHaveBeenCalledWith(proc.stdout, "music", {
+      inputType: StreamType.Raw,
+      inlineVolume: true,
+    });
   });
 
   it("rejects playback when Discord is not connected", () => {
@@ -77,6 +83,8 @@ describe("createMusicPlayer", () => {
       isConnected: () => false,
       playStream: vi.fn(),
       getOwner: vi.fn((): DiscordPlayerOwner => "none"),
+      getMusicVolume: vi.fn(() => 1),
+      setMusicVolume: vi.fn(),
       pause: vi.fn(),
       unpause: vi.fn(() => true),
       stop: vi.fn(),
@@ -102,6 +110,8 @@ describe("createMusicPlayer", () => {
       isConnected: () => true,
       playStream: vi.fn(),
       getOwner: vi.fn((): DiscordPlayerOwner => "none"),
+      getMusicVolume: vi.fn(() => 1),
+      setMusicVolume: vi.fn(),
       pause: vi.fn(),
       unpause: vi.fn(() => true),
       stop: vi.fn(),
@@ -128,6 +138,8 @@ describe("createMusicPlayer", () => {
       isConnected: () => true,
       playStream: vi.fn(),
       getOwner: vi.fn((): DiscordPlayerOwner => "none"),
+      getMusicVolume: vi.fn(() => 1),
+      setMusicVolume: vi.fn(),
       pause: vi.fn(),
       unpause: vi.fn(() => true),
       stop: vi.fn(),

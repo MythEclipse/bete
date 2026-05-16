@@ -19,3 +19,10 @@ export function skipMedia(): Promise<MediaState> {
 export function stopMedia(): Promise<MediaState> {
   return request<MediaState>('/api/media/stop', { method: 'POST' });
 }
+
+export function setMediaVolume(volume: number): Promise<MediaState> {
+  return request<MediaState>('/api/media/volume', {
+    method: 'POST',
+    body: JSON.stringify({ volume }),
+  });
+}

@@ -2,17 +2,23 @@ import { Readable } from "node:stream";
 import {
   AudioPlayer,
   AudioPlayerStatus,
+  type AudioResource,
   createAudioPlayer,
   createAudioResource,
   StreamType,
   VoiceConnection,
 } from "@discordjs/voice";
-import type { DiscordPlayerOwner } from "./media/mediaTypes";
+import type {
+  DiscordPlayOptions,
+  DiscordPlayerOwner,
+} from "./media/mediaTypes";
 
 export class DiscordPlayer {
   private player: AudioPlayer;
   private connection: VoiceConnection | null = null;
   private owner: DiscordPlayerOwner = "none";
+  private resource: AudioResource | null = null;
+  private musicVolume = 1;
 
   constructor() {
     this.player = createAudioPlayer();
@@ -24,6 +30,7 @@ export class DiscordPlayer {
     this.player.on("error", (error) => {
       console.error(`[player] Error: ${error.message}`);
       this.owner = "none";
+      this.resource = null;
     });
   }
 
@@ -40,20 +47,34 @@ export class DiscordPlayer {
     return this.connection !== null;
   }
 
-  public playStream(stream: Readable, owner: DiscordPlayerOwner) {
+  public playStream(
+    stream: Readable,
+    owner: DiscordPlayerOwner,
+    options: DiscordPlayOptions = {},
+  ) {
     if (owner === "none") {
       throw new Error("Discord audio player owner is required");
     }
     this.assertOwnerAvailable(owner);
 
     const resource = createAudioResource(stream, {
-      inputType: StreamType.OggOpus,
+      inputType: options.inputType ?? StreamType.OggOpus,
+      inlineVolume: options.inlineVolume ?? false,
     });
 
     if (this.owner === owner) {
       this.player.stop();
     }
+    this.resource = resource;
     this.owner = owner;
+    if (owner === "music") {
+      const nextVolume =
+        options.volume !== undefined
+          ? this.normalizeVolume(options.volume)
+          : this.musicVolume;
+      this.musicVolume = nextVolume;
+      this.setResourceVolume(nextVolume);
+    }
     this.player.play(resource);
     this.connection?.subscribe(this.player);
   }
@@ -76,6 +97,19 @@ export class DiscordPlayer {
     if (!this.canControl(owner)) return;
     this.player.stop();
     this.owner = "none";
+    this.resource = null;
+  }
+
+  public getMusicVolume(): number {
+    return this.musicVolume;
+  }
+
+  public setMusicVolume(volume: number): void {
+    const nextVolume = this.normalizeVolume(volume);
+    this.musicVolume = nextVolume;
+    if (this.owner === "music") {
+      this.setResourceVolume(nextVolume);
+    }
   }
 
   private assertOwnerAvailable(owner: DiscordPlayerOwner): void {
@@ -86,6 +120,16 @@ export class DiscordPlayer {
 
   private canControl(owner?: DiscordPlayerOwner): boolean {
     return !owner || this.owner === "none" || this.owner === owner;
+  }
+
+  private normalizeVolume(volume: number): number {
+    if (!Number.isFinite(volume)) return this.musicVolume;
+    return Math.max(0, Math.min(1, volume));
+  }
+
+  private setResourceVolume(volume: number): void {
+    if (!this.resource?.volume) return;
+    this.resource.volume.setVolume(volume);
   }
 }
 

@@ -194,6 +194,7 @@ describe("MediaController", () => {
     expect(state).toEqual({
       playing: false,
       activeMode: null,
+      musicVolume: 1,
       current: null,
       queue: [],
     });

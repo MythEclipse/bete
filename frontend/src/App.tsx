@@ -234,6 +234,7 @@ export default function App() {
               onStartScreen={(source) => media.enqueue(source, "screen")}
               onSkip={media.skip}
               onStop={media.stop}
+              onVolumeChange={media.setVolume}
             />
           )}
         </TabsContent>
