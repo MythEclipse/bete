@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { Streamer } from "@dank074/discord-video-stream";
 import { AudioPlayerStatus } from "@discordjs/voice";
 import type { Client } from "discord.js-selfbot-v13";
+import { config } from "./config";
 import express, {
   type NextFunction,
   type Request,
@@ -257,6 +258,25 @@ export async function startWebserver(
     res.send(await getMetrics());
   });
 
+  // Simple password-based auth
+  app.post("/api/auth/login", (req: Request, res: Response) => {
+    const { password } = req.body;
+    if (password === config.ADMIN_PASSWORD) {
+      res.json({ ok: true });
+    } else {
+      res.status(401).json({ error: "Invalid password" });
+    }
+  });
+
+  const adminAuth = (req: Request, res: Response, next: NextFunction) => {
+    const authHeader = req.headers["x-admin-password"];
+    if (authHeader === config.ADMIN_PASSWORD) {
+      next();
+    } else {
+      res.status(401).json({ error: "Unauthorized access to admin features" });
+    }
+  };
+
   // Register route modules
   app.use(
     "/api",
@@ -264,6 +284,7 @@ export async function startWebserver(
   );
   app.use(
     "/api",
+    adminAuth,
     createVoiceRoutes({
       voiceController,
       patchSharedUIState,
@@ -273,7 +294,7 @@ export async function startWebserver(
   app.use("/api", createMessageRoutes());
   app.use("/api", createAnalysisRoutes());
   app.use("/api", createSyncRoutes(_client));
-  app.use("/api", createMediaRoutes(mediaController));
+  app.use("/api", adminAuth, createMediaRoutes(mediaController));
 
   // Inbound: Discord PCM → tagged chunks → browser
   (globalThis as VoiceGlobals).broadcastPcmToWeb = (

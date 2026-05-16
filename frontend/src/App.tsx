@@ -5,6 +5,7 @@ import { MessagesPanel } from "./components/messages/MessagesPanel";
 import { ReviewPanel } from "./components/review/ReviewPanel";
 import { Tabs, TabsContent } from "./components/ui/tabs";
 import { VoicePanel } from "./components/voice/VoicePanel";
+import { AuthOverlay } from "./components/layout/AuthOverlay";
 import { useDashboardSocket } from "./hooks/useDashboardSocket";
 import { mergeMessages, useMessages } from "./hooks/useMessages";
 import { useMediaControl } from "./hooks/useMediaControl";
@@ -26,6 +27,7 @@ export default function App() {
   const [levels, setLevels] = useState<number[]>(Array.from({ length: 32 }, () => 0.04));
   const [isListening, setIsListening] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem("admin-password"));
   const audioContextListenRef = useRef<AudioContext | null>(null);
   const audioContextTransmitRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -198,34 +200,42 @@ export default function App() {
       </div>
       <Tabs value={activeTab} onValueChange={(value) => patchUIState({ activeTab: value as DashboardTab })}>
         <TabsContent value="voice">
-          <VoicePanel
-            guilds={voice.guilds}
-            channels={voice.voiceChannels}
-            selectedGuild={selectedVoiceGuild}
-            selectedChannel={selectedVoiceChannel}
-            status={voice.voiceStatus}
-            loading={voice.loading}
-            activeSpeakers={activeSpeakers}
-            levels={levels}
-            isListening={isListening}
-            isStreaming={isStreaming}
-            onGuildChange={(guildId) => patchUIState({ selectedVoiceGuild: guildId, selectedVoiceChannel: "" })}
-            onChannelChange={(channelId) => patchUIState({ selectedVoiceChannel: channelId })}
-            onJoin={() => voice.joinVoice(selectedVoiceGuild, selectedVoiceChannel)}
-            onDisconnect={() => voice.leaveVoice()}
-            onListenToggle={toggleListening}
-            onStreamingToggle={toggleStreaming}
-          />
+          {!isAuthenticated ? (
+            <AuthOverlay onAuthenticated={() => setIsAuthenticated(true)} />
+          ) : (
+            <VoicePanel
+              guilds={voice.guilds}
+              channels={voice.voiceChannels}
+              selectedGuild={selectedVoiceGuild}
+              selectedChannel={selectedVoiceChannel}
+              status={voice.voiceStatus}
+              loading={voice.loading}
+              activeSpeakers={activeSpeakers}
+              levels={levels}
+              isListening={isListening}
+              isStreaming={isStreaming}
+              onGuildChange={(guildId) => patchUIState({ selectedVoiceGuild: guildId, selectedVoiceChannel: "" })}
+              onChannelChange={(channelId) => patchUIState({ selectedVoiceChannel: channelId })}
+              onJoin={() => voice.joinVoice(selectedVoiceGuild, selectedVoiceChannel)}
+              onDisconnect={() => voice.leaveVoice()}
+              onListenToggle={toggleListening}
+              onStreamingToggle={toggleStreaming}
+            />
+          )}
         </TabsContent>
         <TabsContent value="media">
-          <MediaPanel
-            state={media.mediaState}
-            loading={media.loading}
-            onQueueMusic={(source) => media.enqueue(source, "music")}
-            onStartScreen={(source) => media.enqueue(source, "screen")}
-            onSkip={media.skip}
-            onStop={media.stop}
-          />
+          {!isAuthenticated ? (
+            <AuthOverlay onAuthenticated={() => setIsAuthenticated(true)} />
+          ) : (
+            <MediaPanel
+              state={media.mediaState}
+              loading={media.loading}
+              onQueueMusic={(source) => media.enqueue(source, "music")}
+              onStartScreen={(source) => media.enqueue(source, "screen")}
+              onSkip={media.skip}
+              onStop={media.stop}
+            />
+          )}
         </TabsContent>
         <TabsContent value="messages">
           <MessagesPanel

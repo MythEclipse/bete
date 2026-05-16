@@ -50,8 +50,12 @@ class ApiError extends Error {
 }
 
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const password = localStorage.getItem("admin-password");
   const res = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(password ? { "X-Admin-Password": password } : {}),
+    },
     ...init,
   });
 
