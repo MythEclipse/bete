@@ -144,7 +144,9 @@ async function runAnalysisInWorker(
   messages: MessageRecord[],
 ): Promise<AnalysisWorkerResponse> {
   return new Promise((resolve, reject) => {
-    const worker = new Worker(new URL("./aiAnalysisWorker.ts", import.meta.url));
+    const worker = new Worker(
+      new URL("./aiAnalysisWorker.ts", import.meta.url),
+    );
 
     worker.once("message", (response: AnalysisWorkerResponse) => {
       worker.terminate().catch((error) => {
@@ -213,7 +215,6 @@ function scheduleConversationAnalysis(conversationKey: string): void {
 export async function queueMessageAnalysis(messageId: string): Promise<void> {
   if (!config.AI_ANALYSIS_ENABLED) return;
 
-
   try {
     // Look up the message to get its conversation key
     const message = await getMessageById(messageId);
@@ -241,7 +242,6 @@ export async function queueMessageAnalysis(messageId: string): Promise<void> {
  */
 export function queueConversationAnalysis(conversationKey: string): void {
   if (!config.AI_ANALYSIS_ENABLED) return;
-
 
   // Schedule debounced analysis
   scheduleConversationAnalysis(conversationKey);

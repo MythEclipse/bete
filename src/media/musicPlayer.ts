@@ -30,13 +30,27 @@ export function createMusicPlayer(
       }) as unknown as ChildProcessWithoutNullStreams;
       proc.stderr.resume();
 
-      audioPlayer.playStream(proc.stdout);
+      audioPlayer.playStream(proc.stdout, "music");
 
       let stopped = false;
+      let released = false;
+      const release = () => {
+        if (released) return;
+        released = true;
+        audioPlayer.stop("music");
+      };
+
       const done = new Promise<void>((resolve, reject) => {
-        proc.on("error", reject);
-        proc.stdout.on("error", reject);
+        proc.on("error", (error) => {
+          release();
+          reject(error);
+        });
+        proc.stdout.on("error", (error) => {
+          release();
+          reject(error);
+        });
         proc.on("close", (code) => {
+          release();
           if (code === 0 || stopped) {
             resolve();
             return;
@@ -51,7 +65,7 @@ export function createMusicPlayer(
           if (stopped) return;
           stopped = true;
           proc.kill("SIGTERM");
-          audioPlayer.stop();
+          release();
         },
       };
     },

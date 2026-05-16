@@ -3,10 +3,14 @@ import { discordPlayer } from "../player";
 import { MediaQueue } from "./mediaQueue";
 import { resolveMediaSource } from "./mediaResolver";
 import type {
+  MediaMode,
   MediaState,
   MusicPlayback,
   MusicPlayer,
+  QueueMediaOptions,
   ResolvedMediaSource,
+  ScreenShareController,
+  ScreenSharePlayback,
 } from "./mediaTypes";
 import { createMusicPlayer } from "./musicPlayer";
 
@@ -15,6 +19,7 @@ export interface MediaControllerDependencies {
   isBrowserStreaming?: () => boolean;
   resolveMediaSource?: (source: string) => Promise<ResolvedMediaSource>;
   musicPlayer?: MusicPlayer;
+  screenController?: ScreenShareController;
   onStateChange?: (state: MediaState) => void;
 }
 
@@ -24,6 +29,8 @@ export class MediaController {
   private playback: MusicPlayback | null = null;
   private playbackToken = 0;
   private skipInProgress = false;
+  private screenPlayback: ScreenSharePlayback | null = null;
+  private activeMode: MediaMode | null = null;
 
   constructor(private readonly dependencies: MediaControllerDependencies = {}) {
     this.musicPlayer = dependencies.musicPlayer ?? createMusicPlayer();
@@ -32,17 +39,27 @@ export class MediaController {
   getState(): MediaState {
     const snapshot = this.queueStore.snapshot();
     return {
-      playing: snapshot.current?.status === "playing",
+      playing:
+        this.activeMode === "screen" || snapshot.current?.status === "playing",
+      activeMode: this.activeMode ?? snapshot.current?.mode ?? null,
       ...snapshot,
     };
   }
 
-  async queue(source: string): Promise<MediaState> {
-    this.assertCanStart();
+  async queue(
+    source: string,
+    options: QueueMediaOptions = {},
+  ): Promise<MediaState> {
+    const mode = options.mode ?? "music";
+    if (mode === "screen") {
+      return this.startScreen(source);
+    }
+
+    this.assertCanStartMusic();
     const resolved = await (
       this.dependencies.resolveMediaSource ?? resolveMediaSource
     )(source);
-    this.queueStore.add(resolved);
+    this.queueStore.add(resolved, mode, options.requestedBy);
     this.startNextIfIdle();
     return this.emitState();
   }
@@ -73,11 +90,14 @@ export class MediaController {
     this.playbackToken++;
     this.playback?.stop();
     this.playback = null;
+    this.screenPlayback?.stop();
+    this.screenPlayback = null;
+    this.activeMode = null;
     this.queueStore.clear();
     return this.emitState();
   }
 
-  private assertCanStart(): void {
+  private assertCanStartMusic(): void {
     const isVoiceConnected =
       this.dependencies.isVoiceConnected ?? (() => discordPlayer.isConnected());
     if (!isVoiceConnected()) {
@@ -88,6 +108,10 @@ export class MediaController {
       );
     }
 
+    if (this.screenPlayback || this.dependencies.screenController?.isActive()) {
+      throw new AppError("Another media mode is active", "MEDIA_BUSY", 409);
+    }
+
     if (this.dependencies.isBrowserStreaming?.()) {
       throw new AppError(
         "Stop browser microphone streaming before playing media",
@@ -95,6 +119,46 @@ export class MediaController {
         409,
       );
     }
+  }
+
+  private async startScreen(source: string): Promise<MediaState> {
+    if (
+      this.screenPlayback ||
+      this.dependencies.screenController?.isActive() ||
+      this.playback ||
+      this.queueStore.snapshot().current
+    ) {
+      throw new AppError("Another media mode is active", "MEDIA_BUSY", 409);
+    }
+    const screenController = this.dependencies.screenController;
+    if (!screenController) {
+      throw new AppError(
+        "Screen sharing is unavailable",
+        "SCREEN_UNAVAILABLE",
+        500,
+      );
+    }
+
+    this.activeMode = "screen";
+    try {
+      this.screenPlayback = await screenController.start(source);
+    } catch (error) {
+      this.activeMode = null;
+      throw error;
+    }
+
+    this.screenPlayback.done.then(
+      () => this.finishScreen(),
+      () => this.finishScreen(),
+    );
+    return this.emitState();
+  }
+
+  private finishScreen(): void {
+    if (!this.screenPlayback || this.activeMode !== "screen") return;
+    this.screenPlayback = null;
+    this.activeMode = null;
+    this.emitState();
   }
 
   private startNextIfIdle(): void {

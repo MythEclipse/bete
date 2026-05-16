@@ -25,8 +25,14 @@ export interface MediaQueueItem extends ResolvedMediaSource {
 
 export interface MediaState {
   playing: boolean;
+  activeMode: MediaMode | null;
   current: MediaQueueItem | null;
   queue: MediaQueueItem[];
+}
+
+export interface QueueMediaOptions {
+  mode?: MediaMode;
+  requestedBy?: string;
 }
 
 export interface MusicPlayback {
@@ -38,8 +44,23 @@ export interface MusicPlayer {
   play(source: ResolvedMediaSource): MusicPlayback;
 }
 
-export interface DiscordAudioPlayer {
-  isConnected(): boolean;
-  playStream(stream: Readable): void;
+export interface ScreenSharePlayback {
+  done: Promise<void>;
   stop(): void;
+}
+
+export interface ScreenShareController {
+  isActive(): boolean;
+  start(source: string): Promise<ScreenSharePlayback>;
+}
+
+export type DiscordPlayerOwner = "none" | "browser-bridge" | "music" | "screen";
+
+export interface DiscordAudioPlayer {
+  getOwner(): DiscordPlayerOwner;
+  isConnected(): boolean;
+  playStream(stream: Readable, owner: DiscordPlayerOwner): void;
+  pause(owner?: DiscordPlayerOwner): void;
+  unpause(owner?: DiscordPlayerOwner): boolean;
+  stop(owner?: DiscordPlayerOwner): void;
 }

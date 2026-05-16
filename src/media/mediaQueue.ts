@@ -1,4 +1,5 @@
 import type {
+  MediaMode,
   MediaQueueItem,
   MediaState,
   ResolvedMediaSource,
@@ -13,10 +14,14 @@ export class MediaQueue {
     private readonly now = () => Date.now(),
   ) {}
 
-  add(source: ResolvedMediaSource, requestedBy = "dashboard"): MediaQueueItem {
+  add(
+    source: ResolvedMediaSource,
+    mode: MediaQueueItem["mode"] = "music",
+    requestedBy = "dashboard",
+  ): MediaQueueItem {
     const item: MediaQueueItem = {
       id: this.createId(),
-      mode: "music",
+      mode,
       requestedBy,
       addedAt: this.now(),
       status: "queued",

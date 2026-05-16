@@ -1,7 +1,14 @@
+import type { spawn as nodeSpawn } from "node:child_process";
+
+type Spawn = typeof nodeSpawn;
+
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
-import type { DiscordAudioPlayer } from "../../src/media/mediaTypes";
+import type {
+  DiscordAudioPlayer,
+  DiscordPlayerOwner,
+} from "../../src/media/mediaTypes";
 import { createMusicPlayer } from "../../src/media/musicPlayer";
 
 class FakeProcess extends EventEmitter {
@@ -22,9 +29,15 @@ describe("createMusicPlayer", () => {
     const discordPlayer: DiscordAudioPlayer = {
       isConnected: () => true,
       playStream: vi.fn(),
+      getOwner: vi.fn((): DiscordPlayerOwner => "none"),
+      pause: vi.fn(),
+      unpause: vi.fn(() => true),
       stop: vi.fn(),
     };
-    const player = createMusicPlayer({ spawn, discordPlayer });
+    const player = createMusicPlayer({
+      spawn: spawn as unknown as Spawn,
+      discordPlayer,
+    });
 
     const playback = player.play({
       source: "https://example.com/song.mp3",
@@ -55,7 +68,7 @@ describe("createMusicPlayer", () => {
       ],
       { stdio: ["ignore", "pipe", "pipe"] },
     );
-    expect(discordPlayer.playStream).toHaveBeenCalledWith(proc.stdout);
+    expect(discordPlayer.playStream).toHaveBeenCalledWith(proc.stdout, "music");
   });
 
   it("rejects playback when Discord is not connected", () => {
@@ -63,9 +76,15 @@ describe("createMusicPlayer", () => {
     const discordPlayer: DiscordAudioPlayer = {
       isConnected: () => false,
       playStream: vi.fn(),
+      getOwner: vi.fn((): DiscordPlayerOwner => "none"),
+      pause: vi.fn(),
+      unpause: vi.fn(() => true),
       stop: vi.fn(),
     };
-    const player = createMusicPlayer({ spawn, discordPlayer });
+    const player = createMusicPlayer({
+      spawn: spawn as unknown as Spawn,
+      discordPlayer,
+    });
 
     expect(() =>
       player.play({
@@ -77,15 +96,44 @@ describe("createMusicPlayer", () => {
     expect(spawn).not.toHaveBeenCalled();
   });
 
+  it("releases ownership on normal ffmpeg close", async () => {
+    const proc = new FakeProcess();
+    const discordPlayer: DiscordAudioPlayer = {
+      isConnected: () => true,
+      playStream: vi.fn(),
+      getOwner: vi.fn((): DiscordPlayerOwner => "none"),
+      pause: vi.fn(),
+      unpause: vi.fn(() => true),
+      stop: vi.fn(),
+    };
+    const player = createMusicPlayer({
+      spawn: vi.fn(() => proc) as unknown as Spawn,
+      discordPlayer,
+    });
+
+    const playback = player.play({
+      source: "/tmp/song.ogg",
+      title: "song.ogg",
+      kind: "local",
+    });
+    // simulate normal close
+    proc.emit("close", 0);
+    await playback.done;
+    expect(discordPlayer.stop).toHaveBeenCalledWith("music");
+  });
+
   it("kills ffmpeg and stops Discord playback once", () => {
     const proc = new FakeProcess();
     const discordPlayer: DiscordAudioPlayer = {
       isConnected: () => true,
       playStream: vi.fn(),
+      getOwner: vi.fn((): DiscordPlayerOwner => "none"),
+      pause: vi.fn(),
+      unpause: vi.fn(() => true),
       stop: vi.fn(),
     };
     const player = createMusicPlayer({
-      spawn: vi.fn(() => proc),
+      spawn: vi.fn(() => proc) as unknown as Spawn,
       discordPlayer,
     });
 

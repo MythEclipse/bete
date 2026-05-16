@@ -89,6 +89,8 @@ export async function startRecording(
 
   // Dengarkan siapapun yang mulai bicara
   receiver.speaking.on("start", async (userId) => {
+    if (userId === client.user?.id) return;
+
     const userMetadata = await collectUserMetadata(client, userId, channel);
     logger.info(
       { userId, username: userMetadata.username },

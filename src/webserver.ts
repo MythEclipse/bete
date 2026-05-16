@@ -1,15 +1,17 @@
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
+import { Streamer } from "@dank074/discord-video-stream";
+import { AudioPlayerStatus } from "@discordjs/voice";
 import type { Client } from "discord.js-selfbot-v13";
 import express from "express";
 import helmet from "helmet";
-import { AudioPlayerStatus } from "@discordjs/voice";
 import * as prism from "prism-media";
 import { WebSocketServer } from "ws";
 import { AppError } from "./errors";
 import { createChildLogger, logger } from "./logger";
 import { MediaController } from "./media/mediaController";
+import { createScreenShareController } from "./media/screenShareController";
 import { getMetrics, uptimeGauge } from "./metrics";
 import { createBroadcaster } from "./moderation/broadcaster";
 import type { ModerationBroadcaster } from "./moderation/types";
@@ -163,9 +165,16 @@ export async function startWebserver(
   const broadcaster = createBroadcaster();
   (globalThis as VoiceGlobals).moderationBroadcaster = broadcaster;
 
+  const streamer = new Streamer(_client);
+  const screenController = createScreenShareController({
+    getVoiceStatus: () => voiceController.getStatus(),
+    streamer,
+  });
+
   const mediaController = new MediaController({
     isVoiceConnected: () => voiceController.getStatus().connected,
     isBrowserStreaming: () => sharedUIState.isStreaming,
+    screenController,
     onStateChange: (state) => broadcaster.mediaState(state),
   });
 
@@ -287,11 +296,12 @@ export async function startWebserver(
   const SILENCE_TAIL_MS = 300; // continue sending silence for 300ms after browser stops
   const MAX_BUF_BYTES = BYTES_PER_FRAME * 50; // cap at 1 second to avoid runaway buffer
 
-  let opusEncoder: prism.opus.Encoder;
+  let opusEncoder: prism.opus.Encoder | null = null;
   let bridgePlayerPaused = true;
   const SILENCE_FRAME = Buffer.alloc(BYTES_PER_FRAME, 0);
 
   function startBrowserAudioBridge(): void {
+    if (opusEncoder) return;
     opusEncoder = new prism.opus.Encoder({
       rate: RATE,
       channels: CHANNELS,
@@ -308,18 +318,22 @@ export async function startWebserver(
     opusEncoder.on("error", () => {});
     opusEncoder.pipe(oggBitstream);
     opusEncoder.write(Buffer.alloc(BYTES_PER_FRAME, 0));
-    discordPlayer.playStream(oggBitstream);
-    discordPlayer.pause();
+    discordPlayer.playStream(oggBitstream, "browser-bridge");
+    discordPlayer.pause("browser-bridge");
     bridgePlayerPaused = true;
   }
 
-  function ensureBrowserAudioBridge(): void {
-    if (discordPlayer.getStatus() === AudioPlayerStatus.Idle) {
+  function ensureBrowserAudioBridge(): boolean {
+    const owner = discordPlayer.getOwner();
+    if (owner !== "none" && owner !== "browser-bridge") return false;
+    if (
+      owner === "none" ||
+      discordPlayer.getStatus() === AudioPlayerStatus.Idle
+    ) {
       startBrowserAudioBridge();
     }
+    return true;
   }
-
-  startBrowserAudioBridge();
 
   let pcmBuffer = Buffer.alloc(0);
   let lastBrowserAudioTime = 0;
@@ -351,9 +365,12 @@ export async function startWebserver(
       dbAccum += rmsDb(frame);
       dbCount++;
 
-      ensureBrowserAudioBridge();
+      if (!ensureBrowserAudioBridge()) {
+        pcmBuffer = Buffer.alloc(0);
+        return;
+      }
       if (bridgePlayerPaused) {
-        const unpaused = discordPlayer.unpause();
+        const unpaused = discordPlayer.unpause("browser-bridge");
         bridgePlayerPaused = false;
         wsLogger.info({ unpaused }, "Transmitting — Discord indicator ON");
       }
@@ -362,7 +379,7 @@ export async function startWebserver(
       frame = SILENCE_FRAME;
     } else if (!bridgePlayerPaused && msSinceAudio >= SILENCE_TAIL_MS) {
       // No audio for a while — pause Discord indicator
-      discordPlayer.pause();
+      discordPlayer.pause("browser-bridge");
       bridgePlayerPaused = true;
       wsLogger.info("Stopped — Discord indicator OFF");
       return;
@@ -371,6 +388,7 @@ export async function startWebserver(
     }
 
     // Write one frame. If encoder is backpressured, skip this tick to avoid stalling.
+    if (!opusEncoder) return;
     const ok = opusEncoder.write(frame);
     if (!ok) {
       opusEncoder.once("drain", () => {}); // re-arm drain without blocking

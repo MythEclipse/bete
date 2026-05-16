@@ -20,7 +20,7 @@ describe("MediaQueue", () => {
       () => 1700000000000,
     );
 
-    const item = queue.add(source(), "tester");
+    const item = queue.add(source(), "music", "tester");
 
     expect(item).toMatchObject({
       id: "item-1",
@@ -40,7 +40,7 @@ describe("MediaQueue", () => {
       () => "item-1",
       () => 1700000000000,
     );
-    const item = queue.add(source(), "tester");
+    const item = queue.add(source(), "music", "tester");
 
     expect(queue.startNext()).toEqual({ ...item, status: "playing" });
     expect(queue.snapshot()).toEqual({
@@ -55,8 +55,8 @@ describe("MediaQueue", () => {
       () => `item-${++id}`,
       () => 1700000000000,
     );
-    queue.add(source({ title: "first" }), "tester");
-    queue.add(source({ title: "second" }), "tester");
+    queue.add(source({ title: "first" }), "music", "tester");
+    queue.add(source({ title: "second" }), "music", "tester");
     queue.startNext();
 
     queue.completeCurrent();
@@ -71,7 +71,7 @@ describe("MediaQueue", () => {
       () => "item-1",
       () => 1700000000000,
     );
-    const item = queue.add(source(), "tester");
+    const item = queue.add(source(), "music", "tester");
     queue.startNext();
 
     expect(queue.failCurrent()).toEqual({ ...item, status: "failed" });
@@ -83,7 +83,7 @@ describe("MediaQueue", () => {
       () => "item-1",
       () => 1700000000000,
     );
-    queue.add(source(), "tester");
+    queue.add(source(), "music", "tester");
     queue.startNext();
 
     queue.clear();

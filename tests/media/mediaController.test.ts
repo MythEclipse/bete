@@ -5,6 +5,7 @@ import type {
   MusicPlayback,
   MusicPlayer,
   ResolvedMediaSource,
+  ScreenShareController,
 } from "../../src/media/mediaTypes";
 
 function deferred() {
@@ -190,7 +191,62 @@ describe("MediaController", () => {
     const state = await controller.stop();
 
     expect(stop).toHaveBeenCalled();
-    expect(state).toEqual({ playing: false, current: null, queue: [] });
+    expect(state).toEqual({
+      playing: false,
+      activeMode: null,
+      current: null,
+      queue: [],
+    });
+  });
+
+  it("starts screen share mode without resolving music source", async () => {
+    const screenPlayback = deferred();
+    const screenController: ScreenShareController = {
+      isActive: vi.fn(() => false),
+      start: vi.fn(async () => ({
+        done: screenPlayback.promise,
+        stop: vi.fn(),
+      })),
+    };
+    const resolveMediaSource = vi.fn(async (input) => source(input));
+    const controller = new MediaController({
+      isVoiceConnected: () => true,
+      isBrowserStreaming: () => false,
+      resolveMediaSource,
+      musicPlayer: { play: vi.fn() },
+      screenController,
+    });
+
+    const state = await controller.queue("https://youtu.be/video", {
+      mode: "screen",
+    });
+
+    expect(screenController.start).toHaveBeenCalledWith(
+      "https://youtu.be/video",
+    );
+    expect(resolveMediaSource).not.toHaveBeenCalled();
+    expect(state).toMatchObject({ playing: true, activeMode: "screen" });
+  });
+
+  it("rejects music while screen share is active", async () => {
+    const screenController: ScreenShareController = {
+      isActive: vi.fn(() => true),
+      start: vi.fn(),
+    };
+    const controller = new MediaController({
+      isVoiceConnected: () => true,
+      isBrowserStreaming: () => false,
+      resolveMediaSource: async (input) => source(input),
+      musicPlayer: { play: vi.fn() },
+      screenController,
+    });
+
+    await expect(
+      controller.queue("https://example.com/song.mp3"),
+    ).rejects.toMatchObject({
+      code: "MEDIA_BUSY",
+      statusCode: 409,
+    } satisfies Partial<AppError>);
   });
 
   it("emits state changes", async () => {
@@ -200,7 +256,10 @@ describe("MediaController", () => {
       isBrowserStreaming: () => false,
       resolveMediaSource: async (input) => source(input),
       musicPlayer: {
-        play: vi.fn(() => ({ done: new Promise(() => {}), stop: vi.fn() })),
+        play: vi.fn(() => ({
+          done: new Promise<void>(() => {}),
+          stop: vi.fn(),
+        })),
       },
       onStateChange,
     });

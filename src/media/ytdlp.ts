@@ -9,6 +9,7 @@ export interface YtDlpMetadata {
 export interface YtDlpClient {
   getMetadata(url: string): Promise<YtDlpMetadata>;
   getDirectAudioUrl(url: string): Promise<string>;
+  getDirectVideoUrl(url: string): Promise<string>;
 }
 
 export interface YtDlpDependencies {
@@ -43,6 +44,19 @@ export function createYtDlp(dependencies: YtDlpDependencies = {}): YtDlpClient {
         "--get-url",
         "--format",
         "bestaudio[protocol^=http]/bestaudio/best",
+        "--no-playlist",
+        "--no-warnings",
+        "--quiet",
+      ]);
+      return value.trim().split("\n")[0] || url;
+    },
+
+    async getDirectVideoUrl(url: string): Promise<string> {
+      const value = await runYtDlp(spawn, [
+        url,
+        "--get-url",
+        "--format",
+        "bestvideo[protocol^=http]+bestaudio[protocol^=http]/best[protocol^=http]/best",
         "--no-playlist",
         "--no-warnings",
         "--quiet",
