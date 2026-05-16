@@ -54,7 +54,7 @@ interface SharedUIState {
   selectedVoiceChannel: string;
   selectedTextGuild: string;
   selectedTextChannel: string;
-  activeTab: "voice" | "text";
+  activeTab: "voice" | "messages" | "media" | "review";
   isListening: boolean;
   isStreaming: boolean;
 }
@@ -84,7 +84,11 @@ export function normalizeSharedUIState(
     selectedVoiceChannel: value.selectedVoiceChannel ?? "",
     selectedTextGuild: value.selectedTextGuild ?? guild,
     selectedTextChannel: value.selectedTextChannel ?? "",
-    activeTab: value.activeTab === "text" ? "text" : "voice",
+    activeTab: (["voice", "messages", "media", "review"].includes(
+      value.activeTab ?? "",
+    )
+      ? value.activeTab
+      : "voice") as "voice" | "messages" | "media" | "review",
     isListening: value.isListening ?? false,
     isStreaming: value.isStreaming ?? false,
   };
@@ -117,8 +121,12 @@ function patchSharedUIState(patch: SharedUIStatePatch) {
   if (typeof patch.selectedTextChannel === "string") {
     sharedUIState.selectedTextChannel = patch.selectedTextChannel;
   }
-  if (patch.activeTab === "voice" || patch.activeTab === "text") {
-    sharedUIState.activeTab = patch.activeTab;
+  if (["voice", "messages", "media", "review"].includes(patch.activeTab ?? "")) {
+    sharedUIState.activeTab = patch.activeTab as
+      | "voice"
+      | "messages"
+      | "media"
+      | "review";
   }
   if (typeof patch.isListening === "boolean") {
     sharedUIState.isListening = patch.isListening;
