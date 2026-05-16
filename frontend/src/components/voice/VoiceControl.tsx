@@ -15,7 +15,9 @@ interface VoiceControlProps {
   onJoin: () => void;
   onDisconnect: () => void;
   onListenToggle: () => void;
+  onStreamingToggle: () => void;
   isListening: boolean;
+  isStreaming: boolean;
 }
 
 export function VoiceControl({
@@ -30,7 +32,9 @@ export function VoiceControl({
   onJoin,
   onDisconnect,
   onListenToggle,
+  onStreamingToggle,
   isListening,
+  isStreaming,
 }: VoiceControlProps) {
   return (
     <Card>
@@ -68,6 +72,9 @@ export function VoiceControl({
           </Button>
           <Button variant={isListening ? "secondary" : "outline"} onClick={onListenToggle}>
             {isListening ? "Stop Listening" : "Listen Live"}
+          </Button>
+          <Button variant={isStreaming ? "destructive" : "default"} onClick={onStreamingToggle}>
+            {isStreaming ? "Stop Transmitting" : "Start Transmitting"}
           </Button>
         </div>
       </CardContent>

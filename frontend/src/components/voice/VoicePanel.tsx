@@ -14,11 +14,13 @@ interface VoicePanelProps {
   activeSpeakers: ActiveSpeaker[];
   levels: number[];
   isListening: boolean;
+  isStreaming: boolean;
   onGuildChange: (guildId: string) => void;
   onChannelChange: (channelId: string) => void;
   onJoin: () => void;
   onDisconnect: () => void;
   onListenToggle: () => void;
+  onStreamingToggle: () => void;
 }
 
 export function VoicePanel(props: VoicePanelProps) {

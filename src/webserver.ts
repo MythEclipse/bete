@@ -218,6 +218,7 @@ export async function startWebserver(
   app.use(express.json());
 
   app.use(express.static(path.join(__dirname, "../public")));
+  app.use(express.static(path.join(__dirname, "../public/app")));
 
   app.get("/", (_req: Request, res: Response) => {
     const reactIndex = path.join(__dirname, "../public/app/index.html");

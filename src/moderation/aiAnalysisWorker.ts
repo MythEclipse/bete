@@ -1,4 +1,5 @@
 import { parentPort } from "node:worker_threads";
+import { initializeDatabase } from "../database/drizzle";
 import { buildConversationPromptMessages } from "./conversationContext";
 import { runModerationAnalysis } from "./llmModerationClient";
 import {
@@ -8,6 +9,8 @@ import {
 import type { MessageRecord } from "./types";
 
 const MAX_CONTEXT_TOKENS = 8000;
+
+let dbInitialized = false;
 
 interface AnalysisWorkerRequest {
   conversationKey: string;
@@ -32,6 +35,10 @@ async function processAnalysisRequest({
   messages,
 }: AnalysisWorkerRequest): Promise<AnalysisWorkerResponse> {
   try {
+    if (!dbInitialized) {
+      await initializeDatabase();
+      dbInitialized = true;
+    }
     const firstMessage = messages[0];
     if (!firstMessage) return { ok: true, conversationKey, rows: [] };
 

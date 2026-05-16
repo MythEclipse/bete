@@ -25,7 +25,11 @@ export default function App() {
   const [activeSpeakers, setActiveSpeakers] = useState<ActiveSpeaker[]>([]);
   const [levels, setLevels] = useState<number[]>(Array.from({ length: 32 }, () => 0.04));
   const [isListening, setIsListening] = useState(false);
-  const audioContextRef = useRef<AudioContext | null>(null);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const audioContextListenRef = useRef<AudioContext | null>(null);
+  const audioContextTransmitRef = useRef<AudioContext | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
   const userTimelinesRef = useRef(new Map<number, number>());
 
   const activeTab = uiState.activeTab || "voice";
@@ -44,7 +48,7 @@ export default function App() {
     const average = int16Array.length ? sum / int16Array.length : 0;
     setLevels((prev) => prev.map((_, index) => Math.max(0.04, average * (0.5 + Math.sin(index * 0.6 + Date.now() / 140) * 0.35 + 0.65) * 5)));
 
-    const audioContext = audioContextRef.current;
+    const audioContext = audioContextListenRef.current;
     if (!isListening || !audioContext) return;
     const float32Array = new Float32Array(int16Array.length);
     for (let i = 0; i < int16Array.length; i++) float32Array[i] = int16Array[i] / 32768;
@@ -72,6 +76,73 @@ export default function App() {
     onPcm: handleIncomingPcm,
   });
 
+  const stopStreamingLocal = useCallback(() => {
+    setIsStreaming(false);
+    if (processorRef.current) {
+      processorRef.current.disconnect();
+      processorRef.current = null;
+    }
+    if (audioContextTransmitRef.current) {
+      audioContextTransmitRef.current.close();
+      audioContextTransmitRef.current = null;
+    }
+    if (streamRef.current) {
+      for (const track of streamRef.current.getTracks()) track.stop();
+      streamRef.current = null;
+    }
+    setLevels(Array.from({ length: 32 }, () => 0.04));
+  }, []);
+
+  const startStreamingLocal = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      setIsStreaming(true);
+
+      const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+      const audioContext = new AudioContextCtor({ sampleRate: SAMPLE_RATE });
+      audioContextTransmitRef.current = audioContext;
+
+      const source = audioContext.createMediaStreamSource(stream);
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      processorRef.current = processor;
+
+      source.connect(processor);
+      processor.connect(audioContext.destination);
+
+      processor.onaudioprocess = (event) => {
+        if (!socket.socketRef.current || socket.socketRef.current.readyState !== WebSocket.OPEN) return;
+
+        const inputData = event.inputBuffer.getChannelData(0);
+        const pcmData = new Int16Array(inputData.length);
+        for (let i = 0; i < inputData.length; i++) {
+          pcmData[i] = Math.max(-1, Math.min(1, inputData[i])) * 32767;
+        }
+        socket.socketRef.current.send(pcmData.buffer);
+
+        // Update local levels from mic
+        let sum = 0;
+        for (let i = 0; i < inputData.length; i++) sum += Math.abs(inputData[i]);
+        const average = inputData.length ? sum / inputData.length : 0;
+        setLevels((prev) => prev.map((_, index) => Math.max(0.04, average * (0.5 + Math.sin(index * 0.6 + Date.now() / 140) * 0.35 + 0.65) * 5)));
+      };
+    } catch (err) {
+      console.error("Microphone access failed:", err);
+      setIsStreaming(false);
+      throw err;
+    }
+  }, [socket.socketRef]);
+
+  const toggleStreaming = useCallback(async () => {
+    if (isStreaming) {
+      stopStreamingLocal();
+      await patchUIState({ isStreaming: false });
+    } else {
+      await startStreamingLocal();
+      await patchUIState({ isStreaming: true });
+    }
+  }, [isStreaming, startStreamingLocal, stopStreamingLocal, patchUIState]);
+
   useEffect(() => {
     if (selectedVoiceGuild) voice.loadVoiceChannels(selectedVoiceGuild).catch(() => undefined);
   }, [selectedVoiceGuild, voice.loadVoiceChannels]);
@@ -86,15 +157,15 @@ export default function App() {
 
   const toggleListening = useCallback(async () => {
     if (isListening) {
-      await audioContextRef.current?.suspend();
+      await audioContextListenRef.current?.suspend();
       userTimelinesRef.current.clear();
       setIsListening(false);
       await patchUIState({ isListening: false });
       return;
     }
     const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
-    audioContextRef.current ??= new AudioContextCtor({ sampleRate: SAMPLE_RATE });
-    await audioContextRef.current.resume();
+    audioContextListenRef.current ??= new AudioContextCtor({ sampleRate: SAMPLE_RATE });
+    await audioContextListenRef.current.resume();
     setIsListening(true);
     await patchUIState({ isListening: true });
   }, [isListening, patchUIState]);
@@ -131,11 +202,13 @@ export default function App() {
             activeSpeakers={activeSpeakers}
             levels={levels}
             isListening={isListening}
+            isStreaming={isStreaming}
             onGuildChange={(guildId) => patchUIState({ selectedVoiceGuild: guildId, selectedVoiceChannel: "" })}
             onChannelChange={(channelId) => patchUIState({ selectedVoiceChannel: channelId })}
             onJoin={() => voice.joinVoice(selectedVoiceGuild, selectedVoiceChannel)}
             onDisconnect={() => voice.leaveVoice()}
             onListenToggle={toggleListening}
+            onStreamingToggle={toggleStreaming}
           />
         </TabsContent>
         <TabsContent value="media">
