@@ -1,74 +1,51 @@
-import type { MessageRecord } from "../../api/client";
+import { RotateCw } from "lucide-react";
+import type { MessageRecord } from "../../types/messages";
+import { Badge } from "../ui/badge";
+import { Button } from "../ui/button";
 
 export interface MessageCardProps {
   message: MessageRecord;
   onReanalyze: (id: string) => void;
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  pending: "#f9e2af",
-  clean: "#a6e3a1",
-  warn: "#fab387",
-  flagged: "#f38ba8",
-  error: "#f38ba8",
-};
+function aiVariant(status: string) {
+  if (status === "clean") return "success";
+  if (status === "warn") return "warning";
+  if (status === "flagged" || status === "error") return "destructive";
+  return "secondary";
+}
 
 export function MessageCard({ message, onReanalyze }: MessageCardProps) {
   const displayContent = message.edited_content ?? message.content;
   const aiStatus = message.ai_status ?? "pending";
-  const statusColor = STATUS_COLORS[aiStatus] ?? "#6c7086";
 
   return (
-    <div className={`message-card type-${message.type}`}>
-      <img
-        src={message.avatar_url ?? "/default-avatar.png"}
-        alt={message.username}
-        className="message-card-avatar"
-        width={32}
-        height={32}
-      />
-      <div className="message-card-body">
-        <div className="message-card-meta">
-          <span className="message-card-username">{message.username}</span>
-          <span className="message-card-time">
-            {new Date(message.created_at).toLocaleString()}
-          </span>
-          {message.type === "edited" && (
-            <span className="badge badge-edited">edited</span>
-          )}
-          {message.type === "deleted" && (
-            <span className="badge badge-deleted">deleted</span>
-          )}
-          <span
-            className="badge badge-ai"
-            style={{ backgroundColor: statusColor }}
-            title={`AI: ${aiStatus}`}
-          >
-            {aiStatus}
-          </span>
-        </div>
-
-        <p className="message-card-content">{displayContent}</p>
-
-        {message.ai_analysis && (
-          <div className="message-card-analysis">{message.ai_analysis}</div>
-        )}
-
-        {message.ai_error && (
-          <div className="message-card-error">{message.ai_error}</div>
-        )}
-
-        <div className="message-card-actions">
-          <button
-            type="button"
-            className="btn-reanalyze"
-            onClick={() => onReanalyze(message.id)}
-            disabled={aiStatus === "pending"}
-          >
-            Reanalyze
-          </button>
+    <article className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <div className="flex gap-3">
+        <img
+          src={message.avatar_url ?? "/default-avatar.png"}
+          alt=""
+          className="h-10 w-10 rounded-full object-cover"
+        />
+        <div className="min-w-0 flex-1 space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-medium">{message.username || message.user_id}</span>
+            <span className="text-xs text-muted-foreground">{new Date(message.created_at).toLocaleString()}</span>
+            {message.edited_at ? <Badge variant="outline">edited</Badge> : null}
+            {message.deleted_at ? <Badge variant="destructive">deleted</Badge> : null}
+            <Badge variant={aiVariant(aiStatus)}>{aiStatus}</Badge>
+          </div>
+          <p className="whitespace-pre-wrap break-words text-sm leading-6 text-foreground/90">
+            {displayContent || "(empty message)"}
+          </p>
+          {message.ai_analysis ? <div className="rounded-xl bg-muted p-3 text-sm text-muted-foreground">{message.ai_analysis}</div> : null}
+          {message.ai_error ? <div className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">AI error: {message.ai_error}</div> : null}
+          <Button size="sm" variant="outline" onClick={() => onReanalyze(message.id)} disabled={aiStatus === "pending"}>
+            <RotateCw className="h-3.5 w-3.5" />
+            Re-analyze
+          </Button>
         </div>
       </div>
-    </div>
+    </article>
   );
 }

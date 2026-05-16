@@ -5,7 +5,11 @@ import { fileURLToPath } from "node:url";
 import { Streamer } from "@dank074/discord-video-stream";
 import { AudioPlayerStatus } from "@discordjs/voice";
 import type { Client } from "discord.js-selfbot-v13";
-import express from "express";
+import express, {
+  type NextFunction,
+  type Request,
+  type Response,
+} from "express";
 import helmet from "helmet";
 import * as prism from "prism-media";
 import { WebSocketServer } from "ws";
@@ -74,11 +78,11 @@ let sharedUIState: SharedUIState = { ...defaultSharedUIState };
 export function normalizeSharedUIState(
   value: SharedUIStatePatch,
 ): SharedUIState {
-  const legacyGuild = value.selectedGuild ?? "";
+  const guild = value.selectedGuild ?? "";
   return {
-    selectedVoiceGuild: value.selectedVoiceGuild ?? legacyGuild,
+    selectedVoiceGuild: value.selectedVoiceGuild ?? guild,
     selectedVoiceChannel: value.selectedVoiceChannel ?? "",
-    selectedTextGuild: value.selectedTextGuild ?? legacyGuild,
+    selectedTextGuild: value.selectedTextGuild ?? guild,
     selectedTextChannel: value.selectedTextChannel ?? "",
     activeTab: value.activeTab === "text" ? "text" : "voice",
     isListening: value.isListening ?? false,
@@ -128,13 +132,15 @@ function patchSharedUIState(patch: SharedUIStatePatch) {
 
 // Upsample 24kHz mono s16le → 48kHz stereo s16le (pure JS)
 function upsample(mono24k: Buffer): Buffer {
-  const out = Buffer.alloc(mono24k.length * 4);
-  for (let i = 0; i < mono24k.length / 2; i++) {
+  const numSamples = mono24k.length / 2;
+  const out = Buffer.alloc(numSamples * 8);
+  for (let i = 0; i < numSamples; i++) {
     const s = mono24k.readInt16LE(i * 2);
-    out.writeInt16LE(s, i * 8);
-    out.writeInt16LE(s, i * 8 + 2);
-    out.writeInt16LE(s, i * 8 + 4);
-    out.writeInt16LE(s, i * 8 + 6);
+    const base = i * 8;
+    out.writeInt16LE(s, base);
+    out.writeInt16LE(s, base + 2);
+    out.writeInt16LE(s, base + 4);
+    out.writeInt16LE(s, base + 6);
   }
   return out;
 }
@@ -148,7 +154,7 @@ function rmsDb(pcm: Buffer): number {
     sum += s * s;
   }
   const rms = Math.sqrt(sum / samples);
-  return 20 * Math.log10(Math.max(rms, 1e-10));
+  return 20 * Math.log10(rms);
 }
 
 export async function startWebserver(
@@ -189,7 +195,7 @@ export async function startWebserver(
     }),
   );
 
-  app.use((req, res, next) => {
+  app.use((req: Request, res: Response, next: NextFunction) => {
     if (req.path.startsWith("/api/")) {
       res.set("Cache-Control", "no-store");
     }
@@ -213,17 +219,19 @@ export async function startWebserver(
 
   app.use(express.static(path.join(__dirname, "../public")));
 
-  app.get("/", (_req, res) => {
+  app.get("/", (_req: Request, res: Response) => {
     const reactIndex = path.join(__dirname, "../public/app/index.html");
     if (fs.existsSync(reactIndex)) {
       res.sendFile(reactIndex);
-    } else {
-      res.sendFile(path.join(__dirname, "../public/index.html"));
+      return;
     }
+    res
+      .status(503)
+      .send("React dashboard is not built. Run pnpm run build:web.");
   });
 
   // Health check endpoint
-  app.get("/health", (_req, res) => {
+  app.get("/health", (_req: Request, res: Response) => {
     res.json({
       status: "ok",
       timestamp: new Date().toISOString(),
@@ -234,7 +242,7 @@ export async function startWebserver(
   });
 
   // Metrics endpoint
-  app.get("/metrics", async (_req, res) => {
+  app.get("/metrics", async (_req: Request, res: Response) => {
     res.set("Content-Type", "text/plain");
     uptimeGauge.set(process.uptime());
     res.send(await getMetrics());

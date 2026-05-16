@@ -1,5 +1,6 @@
-import type { MessageRecord } from "../../api/client";
-import { MessageCard } from "../messages/MessageCard";
+import type { MessageRecord } from "../../types/messages";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
+import { MessageFeed } from "../messages/MessageFeed";
 
 export interface ReviewPanelProps {
   messages: MessageRecord[];
@@ -8,30 +9,21 @@ export interface ReviewPanelProps {
 
 export function ReviewPanel({ messages, onReanalyze }: ReviewPanelProps) {
   const reviewItems = messages.filter(
-    (m) =>
-      m.ai_status === "warn" ||
-      m.ai_status === "flagged" ||
-      m.ai_status === "error",
+    (message) =>
+      message.ai_status === "warn" ||
+      message.ai_status === "flagged" ||
+      message.ai_status === "error",
   );
 
   return (
-    <div className="review-panel">
-      <div className="review-header">
-        <h2>Needs Review</h2>
-        <span className="review-count">{reviewItems.length}</span>
-      </div>
-
-      {reviewItems.length === 0 ? (
-        <div className="empty-state">
-          <p>No items to review</p>
-        </div>
-      ) : (
-        <div className="review-list">
-          {reviewItems.map((msg) => (
-            <MessageCard key={msg.id} message={msg} onReanalyze={onReanalyze} />
-          ))}
-        </div>
-      )}
-    </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>Needs Review</CardTitle>
+        <CardDescription>{reviewItems.length} captured messages require attention.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <MessageFeed messages={reviewItems} onReanalyze={onReanalyze} emptyText="No warned, flagged, or errored messages." />
+      </CardContent>
+    </Card>
   );
 }
