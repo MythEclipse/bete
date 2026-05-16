@@ -1,4 +1,4 @@
-import type { Router } from "express";
+import type { NextFunction, Request, Response, Router } from "express";
 import express from "express";
 import { AppError } from "../errors";
 import type { MediaController } from "../media/mediaController";
@@ -9,10 +9,28 @@ export type MediaRouteController = Pick<
   "getState" | "queue" | "skip" | "stop"
 >;
 
-export function createMediaRoutes(controller: MediaRouteController): Router {
-  const router = express.Router();
+export interface MediaRouteOptions {
+  adminPassword?: string;
+}
 
-  router.get("/media/status", (_req, res, next) => {
+export function createMediaRoutes(
+  controller: MediaRouteController,
+  options: MediaRouteOptions = {},
+): Router {
+  const router = express.Router();
+  const { adminPassword } = options;
+
+  const adminAuth = (req: Request, res: Response, next: NextFunction) => {
+    if (!adminPassword) return next();
+    const authHeader = req.headers["x-admin-password"];
+    if (authHeader === adminPassword) {
+      next();
+    } else {
+      res.status(401).json({ error: "Unauthorized access to admin features" });
+    }
+  };
+
+  router.get("/media/status", (_req: Request, res: Response, next: NextFunction) => {
     try {
       res.json(controller.getState());
     } catch (error) {
@@ -20,7 +38,7 @@ export function createMediaRoutes(controller: MediaRouteController): Router {
     }
   });
 
-  router.post("/media/queue", async (req, res, next) => {
+  router.post("/media/queue", adminAuth, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { source, mode = "music" } = req.body as {
         source?: string;
@@ -42,7 +60,7 @@ export function createMediaRoutes(controller: MediaRouteController): Router {
     }
   });
 
-  router.post("/media/skip", async (_req, res, next) => {
+  router.post("/media/skip", adminAuth, async (_req: Request, res: Response, next: NextFunction) => {
     try {
       res.json(await controller.skip());
     } catch (error) {
@@ -50,7 +68,7 @@ export function createMediaRoutes(controller: MediaRouteController): Router {
     }
   });
 
-  router.post("/media/stop", async (_req, res, next) => {
+  router.post("/media/stop", adminAuth, async (_req: Request, res: Response, next: NextFunction) => {
     try {
       res.json(await controller.stop());
     } catch (error) {

@@ -183,6 +183,7 @@ export async function startWebserver(
   // Create broadcaster instance
   const broadcaster = createBroadcaster();
   (globalThis as VoiceGlobals).moderationBroadcaster = broadcaster;
+  (globalThis as any).ADMIN_PASSWORD = config.ADMIN_PASSWORD;
 
   const streamer = new Streamer(_client);
   const screenController = createScreenShareController({
@@ -268,15 +269,6 @@ export async function startWebserver(
     }
   });
 
-  const adminAuth = (req: Request, res: Response, next: NextFunction) => {
-    const authHeader = req.headers["x-admin-password"];
-    if (authHeader === config.ADMIN_PASSWORD) {
-      next();
-    } else {
-      res.status(401).json({ error: "Unauthorized access to admin features" });
-    }
-  };
-
   // Register route modules
   app.use(
     "/api",
@@ -284,17 +276,22 @@ export async function startWebserver(
   );
   app.use(
     "/api",
-    adminAuth,
     createVoiceRoutes({
       voiceController,
       patchSharedUIState,
       broadcaster,
+      adminPassword: config.ADMIN_PASSWORD,
     }),
   );
   app.use("/api", createMessageRoutes());
   app.use("/api", createAnalysisRoutes());
   app.use("/api", createSyncRoutes(_client));
-  app.use("/api", adminAuth, createMediaRoutes(mediaController));
+  app.use(
+    "/api",
+    createMediaRoutes(mediaController, {
+      adminPassword: config.ADMIN_PASSWORD,
+    }),
+  );
 
   // Inbound: Discord PCM → tagged chunks → browser
   (globalThis as VoiceGlobals).broadcastPcmToWeb = (
