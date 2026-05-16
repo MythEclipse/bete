@@ -26,35 +26,39 @@ export function parseModerationResponse(
   content: string,
   targetIds: string[],
 ): AnalysisResult[] {
-  // Find first opening brace
+  // Find first opening brace and last closing brace
   const startIdx = content.indexOf("{");
-  if (startIdx === -1) {
+  const endIdx = content.lastIndexOf("}");
+
+  if (startIdx === -1 || endIdx === -1 || endIdx < startIdx) {
     throw new Error("No JSON object found in response");
   }
 
-  // Scan from start and try parsing at each closing brace
+  // Attempt to parse the largest possible JSON object
   let parsed: unknown;
-  let lastError: Error | null = null;
+  const candidate = content.substring(startIdx, endIdx + 1);
 
-  for (let i = startIdx + 1; i < content.length; i++) {
-    if (content[i] === "}") {
-      const candidate = content.substring(startIdx, i + 1);
-      try {
-        parsed = JSON.parse(candidate);
-        // Successfully parsed, break out
-        break;
-      } catch (error) {
-        // Store error and continue scanning
-        lastError = error instanceof Error ? error : new Error(String(error));
-        continue;
+  try {
+    parsed = JSON.parse(candidate);
+  } catch (error) {
+    // If full substring fails, try scanning backwards from the last }
+    let lastError: Error = error instanceof Error ? error : new Error(String(error));
+
+    for (let i = endIdx - 1; i > startIdx; i--) {
+      if (content[i] === "}") {
+        try {
+          parsed = JSON.parse(content.substring(startIdx, i + 1));
+          break;
+        } catch (innerError) {
+          lastError = innerError instanceof Error ? innerError : new Error(String(innerError));
+          continue;
+        }
       }
     }
-  }
 
-  if (!parsed) {
-    throw new Error(
-      `Failed to parse JSON: ${lastError?.message || "No valid JSON object found"}`,
-    );
+    if (!parsed) {
+      throw new Error(`Failed to parse JSON: ${lastError.message}`);
+    }
   }
 
   // Validate structure
@@ -219,7 +223,18 @@ Return ONLY valid JSON, no other text.`;
           throw new Error(`LLM API error ${response.status}: ${text}`);
         }
 
-        return response.json();
+        const bodyText = await response.text();
+        try {
+          return JSON.parse(bodyText);
+        } catch (e) {
+          // Handle cases where the API provider returns trailing garbage
+          const start = bodyText.indexOf("{");
+          const end = bodyText.lastIndexOf("}");
+          if (start !== -1 && end !== -1 && end > start) {
+            return JSON.parse(bodyText.substring(start, end + 1));
+          }
+          throw e;
+        }
       } finally {
         clearTimeout(timeoutId);
       }

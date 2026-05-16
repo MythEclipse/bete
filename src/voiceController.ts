@@ -83,46 +83,6 @@ export class VoiceController {
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  async listThreads(guildId: string): Promise<ChannelSummary[]> {
-    const guild = this.getGuild(guildId);
-    await guild.channels.fetch().catch(() => null);
-
-    const threads: ChannelSummary[] = [];
-    type ThreadFetchResult = {
-      threads: Map<string, { id: string; name: string; type: string }>;
-    };
-    for (const channel of guild.channels.cache.values()) {
-      const threadParent = channel as typeof channel & {
-        threads?: {
-          fetch: (options: {
-            archived: boolean;
-            limit: number;
-          }) => Promise<ThreadFetchResult>;
-        };
-      };
-      if (!threadParent.threads?.fetch) continue;
-
-      for (const archived of [false, true]) {
-        const fetched = await threadParent.threads
-          .fetch({ archived, limit: 100 })
-          .catch(() => null);
-        if (!fetched?.threads) continue;
-
-        for (const thread of fetched.threads.values()) {
-          threads.push({
-            id: thread.id,
-            name: `${channel.name} / ${thread.name}`,
-            type: thread.type,
-          });
-        }
-      }
-    }
-
-    return Array.from(
-      new Map(threads.map((thread) => [thread.id, thread])).values(),
-    ).sort((a, b) => a.name.localeCompare(b.name));
-  }
-
   async connect(guildId: string, channelId: string): Promise<VoiceStatus> {
     if (!this.client.isReady()) {
       throw new AppError(

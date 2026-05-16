@@ -4,7 +4,6 @@ import {
   disconnectVoice,
   getGuilds,
   getTextChannels,
-  getThreads,
   getVoiceChannels,
   getVoiceStatus,
 } from "../api/voice";
@@ -46,13 +45,9 @@ export function useVoiceControl() {
       setTextChannels([]);
       return [];
     }
-    const [channels, threads] = await Promise.all([
-      getTextChannels(guildId),
-      getThreads(guildId).catch(() => []),
-    ]);
-    const combined = [...channels, ...threads];
-    setTextChannels(combined);
-    return combined;
+    const channels = await getTextChannels(guildId);
+    setTextChannels(channels);
+    return channels;
   }, []);
 
   const joinVoice = useCallback(async (guildId: string, channelId: string) => {

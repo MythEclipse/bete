@@ -13,10 +13,6 @@ export function getTextChannels(guildId: string): Promise<Channel[]> {
   return request<Channel[]>(`/api/guilds/${guildId}/channels`);
 }
 
-export function getThreads(guildId: string): Promise<Channel[]> {
-  return request<Channel[]>(`/api/guilds/${guildId}/threads`);
-}
-
 export function getVoiceStatus(): Promise<VoiceStatus> {
   return request<VoiceStatus>('/api/status');
 }

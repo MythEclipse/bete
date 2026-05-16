@@ -89,22 +89,6 @@ export function createVoiceRoutes(
     }
   });
 
-  // GET /api/guilds/:guildId/threads - List threads in a guild
-  router.get("/guilds/:guildId/threads", async (req, res, next) => {
-    try {
-      const { guildId } = req.params;
-
-      if (!guildId) {
-        throw new AppError("Guild ID is required", "MISSING_GUILD_ID", 400);
-      }
-
-      const threads = await voiceController.listThreads(guildId);
-      res.json(threads);
-    } catch (error) {
-      next(error);
-    }
-  });
-
   // POST /api/connect - Connect to a voice channel
   router.post("/connect", async (req, res, next) => {
     try {

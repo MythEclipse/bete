@@ -35,10 +35,16 @@ async function processAnalysisRequest({
   messages,
 }: AnalysisWorkerRequest): Promise<AnalysisWorkerResponse> {
   try {
-    if (!dbInitialized) {
-      await initializeDatabase();
-      dbInitialized = true;
+    try {
+      if (!dbInitialized) {
+        await initializeDatabase();
+        dbInitialized = true;
+      }
+    } catch (dbError) {
+      const msg = dbError instanceof Error ? dbError.message : String(dbError);
+      return { ok: false, conversationKey, rows: [], error: `Database init failed: ${msg}` };
     }
+
     const firstMessage = messages[0];
     if (!firstMessage) return { ok: true, conversationKey, rows: [] };
 
