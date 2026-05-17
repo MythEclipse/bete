@@ -13,30 +13,39 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Copy Files to VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USERNAME }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          source: ".,!**/node_modules,!**/node_modules/**,!**/.git,!**/.git/**,!node_modules,!vendor/discord.js-selfbot-v13/node_modules,!.git,!vendor/discord.js-selfbot-v13/.git,!.github,!.github/**,!recordings,!recordings/**,!dist,!dist/**,!.env,!*.db,!*.db-shm,!*.db-wal,!test_out.nut"
-          target: "/opt/imphenbot"
-          rm: false
-
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Deploy to VPS
         env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USERNAME: ${{ secrets.VPS_USERNAME }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
           ENV_FILE: ${{ secrets.ENV_FILE }}
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USERNAME }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          envs: ENV_FILE
-          script: |
+        run: |
+          # 1. Setup SSH Key
+          mkdir -p ~/.ssh
+          echo "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+          
+          # 2. Ensure target directory exists on VPS
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "$VPS_USERNAME@$VPS_HOST" "mkdir -p /opt/imphenbot"
+          
+          # 3. Rsync codebase (differential transfer)
+          rsync -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" -avz \
+            --exclude='node_modules' \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='recordings' \
+            --exclude='dist' \
+            --exclude='.env' \
+            --exclude='*.db' \
+            --exclude='*.db-shm' \
+            --exclude='*.db-wal' \
+            --exclude='test_out.nut' \
+            ./ "$VPS_USERNAME@$VPS_HOST:/opt/imphenbot/"
+            
+          # 4. Inject Environment Variables and Build/Restart Containers
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no "$VPS_USERNAME@$VPS_HOST" "
             cd /opt/imphenbot || exit
-            
-            # Write environment variables from GitHub Secrets
-            echo "$ENV_FILE" > .env
-            
-            # Build and restart containers
+            echo \"$ENV_FILE\" > .env
             docker-compose up -d --build
+          "
