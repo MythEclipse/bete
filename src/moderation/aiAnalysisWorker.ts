@@ -3,6 +3,7 @@ import { initializeDatabase } from "../database/drizzle.ts";
 import { buildConversationPromptMessages } from "./conversationContext.ts";
 import { runModerationAnalysis } from "./llmModerationClient.ts";
 import {
+  getAttachmentsForMessages,
   getConversationContextBefore,
   updateMessageAIAnalysis,
 } from "./messageStore.ts";
@@ -66,9 +67,15 @@ async function processAnalysisRequest({
       maxTokens: MAX_CONTEXT_TOKENS,
     });
 
+    const targetIds = messages.map((m) => m.id);
+    const contextIds = contextBefore.map((m) => m.id);
+    const allMessageIds = [...targetIds, ...contextIds];
+    const attachments = await getAttachmentsForMessages(allMessageIds);
+
     const result = await runModerationAnalysis({
       targets: messages,
       contextText: promptMessages.join("\n"),
+      attachments,
     });
 
     const rows: MessageRecord[] = [];

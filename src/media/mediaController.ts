@@ -17,7 +17,10 @@ import { createMusicPlayer } from "./musicPlayer";
 export interface MediaControllerDependencies {
   isVoiceConnected?: () => boolean;
   isBrowserStreaming?: () => boolean;
-  resolveMediaSource?: (source: string, mode?: MediaMode) => Promise<ResolvedMediaSource>;
+  resolveMediaSource?: (
+    source: string,
+    mode?: MediaMode,
+  ) => Promise<ResolvedMediaSource>;
   musicPlayer?: MusicPlayer;
   screenController?: ScreenShareController;
   onStateChange?: (state: MediaState) => void;
@@ -91,7 +94,10 @@ export class MediaController {
     // reject to avoid stealing the shared player. If this controller started
     // the screenPlayback, stop it and proceed.
     if (this.screenPlayback || this.dependencies.screenController?.isActive()) {
-      if (this.dependencies.screenController?.isActive() && !this.screenPlayback) {
+      if (
+        this.dependencies.screenController?.isActive() &&
+        !this.screenPlayback
+      ) {
         throw new AppError("Another media mode is active", "MEDIA_BUSY", 409);
       }
       this.screenPlayback?.stop();

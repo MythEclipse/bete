@@ -20,7 +20,7 @@ export function createMediaResolver(
 
   return async function resolve(
     input: string,
-    mode: MediaMode = "music"
+    mode: MediaMode = "music",
   ): Promise<ResolvedMediaSource> {
     const source = input.trim();
     if (!source) {
@@ -34,17 +34,19 @@ export function createMediaResolver(
     const url = parseUrl(source);
     if (url && isYouTubeUrl(url)) {
       const metadata = await ytdlp.getMetadata(source);
-      const directUrl = mode === "screen" 
-        ? await ytdlp.getDirectVideoUrl(source)
-        : await ytdlp.getDirectAudioUrl(source);
+      const directUrl =
+        mode === "screen"
+          ? await ytdlp.getDirectVideoUrl(source)
+          : await ytdlp.getDirectAudioUrl(source);
       return { source: directUrl, title: metadata.title, kind: "youtube" };
     }
 
     if (url && isSpotifyTrackUrl(url)) {
       const result = await playDlResolver.resolveSpotifyTrack(source);
-      const directUrl = mode === "screen"
-        ? await ytdlp.getDirectVideoUrl(result.url)
-        : await ytdlp.getDirectAudioUrl(result.url);
+      const directUrl =
+        mode === "screen"
+          ? await ytdlp.getDirectVideoUrl(result.url)
+          : await ytdlp.getDirectAudioUrl(result.url);
       return { source: directUrl, title: result.title, kind: "spotify" };
     }
 
@@ -62,9 +64,10 @@ export function createMediaResolver(
 
     if (!url && !looksLikeUrl(source)) {
       const result = await playDlResolver.searchYouTube(source);
-      const directUrl = mode === "screen"
-        ? await ytdlp.getDirectVideoUrl(result.url)
-        : await ytdlp.getDirectAudioUrl(result.url);
+      const directUrl =
+        mode === "screen"
+          ? await ytdlp.getDirectVideoUrl(result.url)
+          : await ytdlp.getDirectAudioUrl(result.url);
       return { source: directUrl, title: result.title, kind: "search" };
     }
 

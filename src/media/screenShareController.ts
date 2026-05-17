@@ -1,7 +1,4 @@
-import {
-  Streamer,
-  playPreparedStream,
-} from "../streaming";
+import { Streamer, playPreparedStream } from "../streaming";
 import { AppError } from "../errors";
 import { createChildLogger } from "../logger";
 import { discordPlayer } from "../player";
@@ -23,8 +20,14 @@ export interface ScreenShareControllerDependencies {
   getDirectVideoUrl?: (source: string) => Promise<string>;
   streamer: Streamer;
   useTranscoder?: boolean;
-  onBeforeStreamStart?: (guildId: string, channelId: string) => Promise<void> | void;
-  onAfterStreamEnd?: (guildId: string, channelId: string) => Promise<void> | void;
+  onBeforeStreamStart?: (
+    guildId: string,
+    channelId: string,
+  ) => Promise<void> | void;
+  onAfterStreamEnd?: (
+    guildId: string,
+    channelId: string,
+  ) => Promise<void> | void;
   onStreamStart?: () => void;
   onStreamEnd?: () => void;
 }

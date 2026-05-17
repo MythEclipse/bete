@@ -8,7 +8,9 @@ import { createChildLogger } from "../../src/logger";
 import {
   decodeCursor,
   encodeCursor,
+  getAttachmentsForMessages,
   getMessageById,
+  insertAttachment,
   insertMessage,
   listMessages,
   listReviewMessages,
@@ -72,21 +74,40 @@ describe("message query integration tests", () => {
           "ai_error" text
         )
       `);
+
+      // Create attachments table
+      await db.run(`
+        CREATE TABLE IF NOT EXISTS "attachments" (
+          "id" text PRIMARY KEY NOT NULL,
+          "message_id" text NOT NULL,
+          "guild_id" text NOT NULL,
+          "channel_id" text NOT NULL,
+          "thread_id" text,
+          "user_id" text NOT NULL,
+          "filename" text NOT NULL,
+          "size" integer NOT NULL,
+          "type" text NOT NULL,
+          "discord_url" text NOT NULL,
+          "uploaded_url" text,
+          "upload_status" text DEFAULT 'pending' NOT NULL,
+          "upload_error" text,
+          "created_at" integer NOT NULL,
+          "uploaded_at" integer
+        )
+      `);
     } catch (error) {
-      logger.debug(
-        { error },
-        "Messages table already exists or error creating it",
-      );
+      logger.debug({ error }, "Tables already exist or error creating them");
     }
   });
 
   beforeEach(async () => {
-    // Clear messages table before each test
+    // Clear tables before each test
     try {
       const db = getTestDatabase();
       await db.run(`DELETE FROM "messages"`);
+      await db.run(`DELETE FROM "attachments"`);
     } catch (error) {
-      logger.debug({ error }, "Could not clear messages table");
+      logger.debug({ error }, "Could not clear tables");
     }
   });
 
@@ -577,6 +598,60 @@ describe("message query integration tests", () => {
       expect(retrieved?.ai_analysis).toBeNull();
       expect(retrieved?.ai_analyzed_at).toBeNull();
       expect(retrieved?.ai_error).toBeNull();
+    });
+  });
+
+  describe("getAttachmentsForMessages", () => {
+    it("returns attachments matching given message IDs", async () => {
+      const msgId1 = "msg-att-1";
+      const msgId2 = "msg-att-2";
+
+      const attachment1 = {
+        id: "att-1",
+        message_id: msgId1,
+        guild_id: "guild-123",
+        channel_id: "channel-456",
+        thread_id: null,
+        user_id: "user-789",
+        filename: "test1.png",
+        size: 1024,
+        type: "image/png",
+        discord_url: "https://discord.com/test1.png",
+        uploaded_url: "https://picser.tech/test1.png",
+        upload_status: "uploaded" as const,
+        upload_error: null,
+        created_at: Date.now(),
+        uploaded_at: Date.now(),
+      };
+
+      const attachment2 = {
+        id: "att-2",
+        message_id: msgId2,
+        guild_id: "guild-123",
+        channel_id: "channel-456",
+        thread_id: null,
+        user_id: "user-789",
+        filename: "test2.png",
+        size: 2048,
+        type: "image/png",
+        discord_url: "https://discord.com/test2.png",
+        uploaded_url: "https://picser.tech/test2.png",
+        upload_status: "uploaded" as const,
+        upload_error: null,
+        created_at: Date.now(),
+        uploaded_at: Date.now(),
+      };
+
+      await insertAttachment(attachment1);
+      await insertAttachment(attachment2);
+
+      const result = await getAttachmentsForMessages([msgId1, msgId2]);
+      expect(result).toHaveLength(2);
+      const ids = result.map((r) => r.id).sort();
+      expect(ids).toEqual(["att-1", "att-2"].sort());
+
+      const emptyResult = await getAttachmentsForMessages([]);
+      expect(emptyResult).toHaveLength(0);
     });
   });
 });

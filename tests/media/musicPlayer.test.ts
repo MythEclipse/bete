@@ -71,10 +71,14 @@ describe("createMusicPlayer", () => {
       ],
       { stdio: ["ignore", "pipe", "pipe"] },
     );
-    expect(discordPlayer.playStream).toHaveBeenCalledWith(proc.stdout, "music", {
-      inputType: StreamType.Raw,
-      inlineVolume: true,
-    });
+    expect(discordPlayer.playStream).toHaveBeenCalledWith(
+      proc.stdout,
+      "music",
+      {
+        inputType: StreamType.Raw,
+        inlineVolume: true,
+      },
+    );
   });
 
   it("rejects playback when Discord is not connected", () => {

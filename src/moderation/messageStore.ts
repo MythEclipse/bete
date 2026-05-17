@@ -1,4 +1,14 @@
-import { and, asc, desc, eq, isNull, or, type SQL, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  or,
+  type SQL,
+  sql,
+} from "drizzle-orm";
 import { getDatabase } from "../database/drizzle.ts";
 import { attachmentsTable, messagesTable } from "../database/schema.ts";
 import { createChildLogger } from "../logger.ts";
@@ -601,6 +611,30 @@ export async function getPendingConversationKeys(
     logger.error(
       { error: error instanceof Error ? error.message : String(error) },
       "Failed to get pending conversation keys",
+    );
+    throw error;
+  }
+}
+
+export async function getAttachmentsForMessages(
+  messageIds: string[],
+): Promise<AttachmentRecord[]> {
+  try {
+    if (messageIds.length === 0) return [];
+    const database = db();
+    const rows = await database
+      .select()
+      .from(attachmentsTable)
+      .where(inArray(attachmentsTable.message_id, messageIds));
+
+    return rows as AttachmentRecord[];
+  } catch (error) {
+    logger.error(
+      {
+        messageIds,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      "Failed to get attachments for messages",
     );
     throw error;
   }

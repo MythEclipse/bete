@@ -336,4 +336,100 @@ describe("runModerationAnalysis", () => {
       }),
     ).rejects.toThrow(/No content in LLM response/);
   });
+
+  it("sends multimodal payload when image attachments are present", async () => {
+    const mockResponse = {
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              results: [
+                {
+                  message_id: "m1",
+                  status: "clean",
+                  flags: [],
+                  score: 0.1,
+                  analysis: "OK",
+                },
+              ],
+            }),
+          },
+        },
+      ],
+    };
+
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("picser.tech") || url.includes("discord.com")) {
+        return Promise.resolve({
+          ok: true,
+          arrayBuffer: async () => {
+            const buffer = Buffer.from("fake-image-bytes");
+            return buffer.buffer.slice(
+              buffer.byteOffset,
+              buffer.byteOffset + buffer.byteLength,
+            );
+          },
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        text: async () => JSON.stringify(mockResponse),
+        json: async () => mockResponse,
+      });
+    });
+
+    const mockAttachment = {
+      id: "a1",
+      message_id: "m1",
+      guild_id: "guild123",
+      channel_id: "channel123",
+      thread_id: null,
+      user_id: "user123",
+      filename: "test.png",
+      size: 500,
+      type: "image/png",
+      discord_url: "https://discord.com/attachment.png",
+      uploaded_url: "https://picser.tech/test.png",
+      upload_status: "uploaded" as const,
+      upload_error: null,
+      created_at: Date.now(),
+      uploaded_at: Date.now(),
+    };
+
+    const result = await runModerationAnalysis({
+      targets: [createMessageRecord()],
+      contextText: "test context",
+      attachments: [mockAttachment],
+    });
+
+    expect(result.results).toHaveLength(1);
+    expect(global.fetch).toHaveBeenCalled();
+
+    const fetchCalls = (global.fetch as any).mock.calls;
+    // Should be called twice: 1st for image download, 2nd for API completions
+    expect(fetchCalls.length).toBe(2);
+
+    // Verify 1st call (image download)
+    expect(fetchCalls[0][0]).toBe("https://picser.tech/test.png");
+
+    // Verify 2nd call (chat completions API)
+    const [, completionsOptions] = fetchCalls[1];
+    const body = JSON.parse(completionsOptions.body);
+
+    const userMessage = body.messages[0];
+    expect(userMessage.role).toBe("user");
+    expect(Array.isArray(userMessage.content)).toBe(true);
+    expect(userMessage.content[0].type).toBe("image_url");
+    expect(userMessage.content[0].image_url.url).toContain(
+      "data:image/png;base64,",
+    );
+    expect(userMessage.content[1].type).toBe("text");
+    expect(userMessage.content[1].text).toContain(
+      "Image Attachment for Message ID: m1",
+    );
+    expect(userMessage.content[2].type).toBe("text");
+    expect(userMessage.content[2].text).toContain(
+      "You are a content moderation assistant.",
+    );
+  });
 });

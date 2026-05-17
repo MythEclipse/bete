@@ -38,7 +38,8 @@ describe("playTranscodedPreparedStream", () => {
   it("pipes transcoder output to session and broadcasts to web", async () => {
     // mock global broadcast
     const broadcasts: Buffer[] = [];
-    (globalThis as any).broadcastVideoToWeb = (chunk: Buffer) => broadcasts.push(Buffer.from(chunk));
+    (globalThis as any).broadcastVideoToWeb = (chunk: Buffer) =>
+      broadcasts.push(Buffer.from(chunk));
 
     const session = {
       connection: { channel: { id: "c" } },
@@ -52,7 +53,9 @@ describe("playTranscodedPreparedStream", () => {
       stop: vi.fn(),
     } as any;
 
-    await playTranscodedPreparedStream("http://example.test/stream", session, { fps: 30 });
+    await playTranscodedPreparedStream("http://example.test/stream", session, {
+      fps: 30,
+    });
     expect(session.play).toHaveBeenCalled();
     expect(broadcasts.length).toBeGreaterThanOrEqual(0);
   });

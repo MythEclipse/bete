@@ -225,7 +225,10 @@ describe("MediaController", () => {
     expect(screenController.start).toHaveBeenCalledWith(
       "https://youtu.be/video",
     );
-    expect(resolveMediaSource).toHaveBeenCalledWith("https://youtu.be/video", "screen");
+    expect(resolveMediaSource).toHaveBeenCalledWith(
+      "https://youtu.be/video",
+      "screen",
+    );
     expect(state).toMatchObject({ playing: true, activeMode: "screen" });
   });
 

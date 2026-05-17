@@ -39,7 +39,10 @@ import { prepareTranscoder } from "../../src/streaming/transcoder";
 
 describe("Transcoder", () => {
   it("starts ffmpeg and returns output stream and command", () => {
-    const { transcoder, command, output } = prepareTranscoder("http://example.test/video", { fps: 24 });
+    const { transcoder, command, output } = prepareTranscoder(
+      "http://example.test/video",
+      { fps: 24 },
+    );
     expect(transcoder).toBeTruthy();
     expect(command).toBeTruthy();
     expect(output).toBeTruthy();

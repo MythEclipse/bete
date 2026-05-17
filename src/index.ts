@@ -74,7 +74,12 @@ async function initializeApp() {
   }
 
   client.on("debug", (msg) => {
-    if (msg.includes("[VOICE") || msg.includes("[ffmpeg") || msg.toLowerCase().includes("error") || msg.toLowerCase().includes("stream")) {
+    if (
+      msg.includes("[VOICE") ||
+      msg.includes("[ffmpeg") ||
+      msg.toLowerCase().includes("error") ||
+      msg.toLowerCase().includes("stream")
+    ) {
       logger.info({ debugMsg: msg }, "Discord Client Debug");
     } else if (config.VERBOSE) {
       logger.debug({ debugMsg: msg }, "Discord Client Debug");

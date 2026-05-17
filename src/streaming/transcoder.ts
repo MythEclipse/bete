@@ -21,7 +21,10 @@ export class Transcoder {
   restartTimer: NodeJS.Timeout | null = null;
   maxRestarts = 6;
 
-  constructor(private source: string, private opts: TranscoderOptions = {}) {}
+  constructor(
+    private source: string,
+    private opts: TranscoderOptions = {},
+  ) {}
 
   start(): { command: ChildProcess; output: Readable } {
     const fps = this.opts.fps ?? 30;
@@ -99,13 +102,19 @@ export class Transcoder {
 
   scheduleRestart() {
     if (this.restartAttempts >= this.maxRestarts) {
-      logger.error({ attempts: this.restartAttempts }, "transcoder reached max restart attempts");
+      logger.error(
+        { attempts: this.restartAttempts },
+        "transcoder reached max restart attempts",
+      );
       return;
     }
     const delay = Math.min(30000, 1000 * Math.pow(2, this.restartAttempts));
     this.restartAttempts += 1;
     transcoderRestartsCounter.inc();
-    logger.info({ delay, attempt: this.restartAttempts }, "scheduling transcoder restart");
+    logger.info(
+      { delay, attempt: this.restartAttempts },
+      "scheduling transcoder restart",
+    );
     this.restartTimer = setTimeout(() => {
       try {
         this.start();
@@ -129,9 +138,9 @@ export class Transcoder {
       clearTimeout(this.restartTimer);
       this.restartTimer = null;
     }
-      if (this.proc && !this.proc.killed) {
-        return new Promise<void>((resolve) => {
-          this.proc?.once("exit", () => resolve());
+    if (this.proc && !this.proc.killed) {
+      return new Promise<void>((resolve) => {
+        this.proc?.once("exit", () => resolve());
         try {
           this.proc?.kill("SIGTERM");
         } catch {
@@ -141,7 +150,7 @@ export class Transcoder {
             resolve();
           }
         }
-          setTimeout(() => resolve(), 5000);
+        setTimeout(() => resolve(), 5000);
       }).then(() => {
         this.proc = null;
         this.output = null;
@@ -151,7 +160,10 @@ export class Transcoder {
   }
 }
 
-export function prepareTranscoder(source: string, options: TranscoderOptions = {}) {
+export function prepareTranscoder(
+  source: string,
+  options: TranscoderOptions = {},
+) {
   const t = new Transcoder(source, options);
   const { command, output } = t.start();
   return { transcoder: t, command, output };

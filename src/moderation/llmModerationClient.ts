@@ -1,7 +1,7 @@
 import { config } from "../config.ts";
 import { createChildLogger } from "../logger.ts";
 import { retryWithBackoff } from "../retry.ts";
-import type { AnalysisResult, MessageRecord } from "./types";
+import type { AnalysisResult, AttachmentRecord, MessageRecord } from "./types";
 
 const log = createChildLogger("llmModerationClient");
 
@@ -174,6 +174,7 @@ export function parseModerationResponse(
 interface ModerationInput {
   targets: MessageRecord[];
   contextText: string;
+  attachments?: AttachmentRecord[];
 }
 
 interface ModerationOutput {
@@ -188,7 +189,7 @@ interface ModerationOutput {
 export async function runModerationAnalysis(
   input: ModerationInput,
 ): Promise<ModerationOutput> {
-  const { targets, contextText } = input;
+  const { targets, contextText, attachments } = input;
 
   if (!targets.length) {
     throw new Error("No targets provided for analysis");
@@ -220,6 +221,88 @@ Each result must have:
 
 Return ONLY valid JSON, no other text.`;
 
+  // Check for image attachments to support multimodal analysis
+  const imageAttachments = (attachments || []).filter(
+    (att) =>
+      (att.uploaded_url || att.discord_url) && att.type.startsWith("image/"),
+  );
+
+  let messageContent:
+    | string
+    | Array<{ type: string; text?: string; image_url?: { url: string } }>;
+  if (imageAttachments.length > 0) {
+    const contentParts: Array<{
+      type: string;
+      text?: string;
+      image_url?: { url: string };
+    }> = [];
+
+    // Download and convert all images to base64 data URLs
+    for (const att of imageAttachments) {
+      try {
+        const urlToUse = att.uploaded_url || att.discord_url;
+        log.info(
+          { attachmentId: att.id, url: urlToUse },
+          "Downloading attachment for base64 encoding",
+        );
+        const res = await fetch(urlToUse);
+        if (res.ok) {
+          const buffer = await res.arrayBuffer();
+          const base64Str = Buffer.from(buffer).toString("base64");
+          const dataUrl = `data:${att.type};base64,${base64Str}`;
+
+          contentParts.push({
+            type: "image_url",
+            image_url: {
+              url: dataUrl,
+            },
+          });
+
+          contentParts.push({
+            type: "text",
+            text: `\n[Image Attachment for Message ID: ${att.message_id}, Filename: ${att.filename}]`,
+          });
+        } else {
+          log.warn(
+            { attachmentId: att.id, status: res.status },
+            "Failed to fetch attachment image",
+          );
+        }
+      } catch (err) {
+        log.warn(
+          {
+            attachmentId: att.id,
+            error: err instanceof Error ? err.message : String(err),
+          },
+          "Error base64 encoding attachment",
+        );
+      }
+    }
+
+    contentParts.push({
+      type: "text",
+      text: prompt,
+    });
+
+    messageContent = contentParts;
+  } else {
+    // If no image is present, send a transparent 1x1 dummy PNG to satisfy multimodal omni requirements
+    const dummyPng =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+    messageContent = [
+      {
+        type: "image_url",
+        image_url: {
+          url: dummyPng,
+        },
+      },
+      {
+        type: "text",
+        text: prompt,
+      },
+    ];
+  }
+
   const result = await retryWithBackoff(
     async () => {
       const controller = new AbortController();
@@ -243,10 +326,14 @@ Return ONLY valid JSON, no other text.`;
               messages: [
                 {
                   role: "user",
-                  content: prompt,
+                  content: messageContent,
                 },
               ],
-              temperature: 0.3,
+              temperature: 0.6,
+              top_p: 0.95,
+              max_tokens: 65536,
+              reasoning_budget: 16384,
+              chat_template_kwargs: { enable_thinking: true },
             }),
           },
         );

@@ -41,7 +41,10 @@ export class Streamer {
     this.dankStreamer = new DankStreamer(client);
   }
 
-  async createSession(guildId: string, channelId: string): Promise<StreamSession> {
+  async createSession(
+    guildId: string,
+    channelId: string,
+  ): Promise<StreamSession> {
     await this.dankStreamer.joinVoice(guildId, channelId);
 
     let stopped = false;
@@ -62,7 +65,10 @@ export class Streamer {
     return {
       connection: {} as any,
       stream: {} as any,
-      play: async (source: string | Readable, options: StreamPlayOptions = {}) => {
+      play: async (
+        source: string | Readable,
+        options: StreamPlayOptions = {},
+      ) => {
         if (stopped) return;
 
         let targetSource: string | Readable = source;
@@ -75,7 +81,12 @@ export class Streamer {
         const bitrateStr = String(options.bitrate ?? 8000).replace(/k$/i, "");
         const bitrateVideo = parseInt(bitrateStr, 10) || 8000;
 
-        console.log("[Streamer] Starting screen share for source:", typeof targetSource === "string" ? targetSource.slice(0, 50) + "..." : "ReadableStream");
+        console.log(
+          "[Streamer] Starting screen share for source:",
+          typeof targetSource === "string"
+            ? targetSource.slice(0, 50) + "..."
+            : "ReadableStream",
+        );
         const { command, output } = dankPrepareStream(targetSource, {
           encoder: Encoders.software({
             x264: { preset: (options.presetH26x as any) ?? "ultrafast" },
@@ -100,7 +111,7 @@ export class Streamer {
 
         const webOutput = new PassThrough();
         const discordOutput = new PassThrough();
-        
+
         output.pipe(webOutput);
         output.pipe(discordOutput);
 
