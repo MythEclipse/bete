@@ -21,6 +21,7 @@ WORKDIR /app
 
 # Install dependencies first for better caching
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml* ./
+COPY vendor/discord.js-selfbot-v13/package.json ./vendor/discord.js-selfbot-v13/package.json
 RUN pnpm install --frozen-lockfile
 
 # Copy the rest of the application
