@@ -3,6 +3,7 @@ import { PassThrough } from "node:stream";
 import type { Readable } from "node:stream";
 import { retryWithBackoff } from "../retry";
 import { createChildLogger } from "../logger";
+import { transcoderRestartsCounter, transcoderRunningGauge } from "../metrics";
 
 const logger = createChildLogger("transcoder");
 
@@ -15,6 +16,10 @@ export interface TranscoderOptions {
 export class Transcoder {
   proc: ChildProcess | null = null;
   output: Readable | null = null;
+  stopping = false;
+  restartAttempts = 0;
+  restartTimer: NodeJS.Timeout | null = null;
+  maxRestarts = 6;
 
   constructor(private source: string, private opts: TranscoderOptions = {}) {}
 
@@ -59,19 +64,56 @@ export class Transcoder {
     });
     cmd.on("exit", (code, signal) => {
       logger.info({ code, signal }, "transcoder exited");
+      transcoderRunningGauge.set(0);
+      // If we didn't explicitly stop, attempt restart with backoff
+      if (!this.stopping) {
+        this.scheduleRestart();
+      }
     });
+
+    transcoderRunningGauge.set(1);
 
     return { command: cmd, output: out };
   }
 
   stop(): void {
+    this.stopping = true;
+    if (this.restartTimer) {
+      clearTimeout(this.restartTimer);
+      this.restartTimer = null;
+    }
     try {
-      if (this.proc && !this.proc.killed) this.proc.kill("SIGKILL");
+      if (this.proc && !this.proc.killed) this.proc.kill("SIGTERM");
     } catch (e) {
-      logger.warn({ e }, "failed to kill transcoder");
+      logger.warn({ e }, "failed to terminate transcoder gracefully");
+      try {
+        if (this.proc && !this.proc.killed) this.proc.kill("SIGKILL");
+      } catch (e2) {
+        logger.warn({ e2 }, "failed to kill transcoder forcefully");
+      }
     }
     this.proc = null;
     this.output = null;
+    transcoderRunningGauge.set(0);
+  }
+
+  scheduleRestart() {
+    if (this.restartAttempts >= this.maxRestarts) {
+      logger.error({ attempts: this.restartAttempts }, "transcoder reached max restart attempts");
+      return;
+    }
+    const delay = Math.min(30000, 1000 * Math.pow(2, this.restartAttempts));
+    this.restartAttempts += 1;
+    transcoderRestartsCounter.inc();
+    logger.info({ delay, attempt: this.restartAttempts }, "scheduling transcoder restart");
+    this.restartTimer = setTimeout(() => {
+      try {
+        this.start();
+      } catch (err) {
+        logger.error({ err }, "transcoder restart failed");
+        this.scheduleRestart();
+      }
+    }, delay) as unknown as NodeJS.Timeout;
   }
 
   async startWithRetry(retries = 2) {
@@ -79,6 +121,33 @@ export class Transcoder {
       retries,
       logger,
     });
+  }
+
+  async shutdown(): Promise<void> {
+    this.stopping = true;
+    if (this.restartTimer) {
+      clearTimeout(this.restartTimer);
+      this.restartTimer = null;
+    }
+      if (this.proc && !this.proc.killed) {
+        return new Promise<void>((resolve) => {
+          this.proc?.once("exit", () => resolve());
+        try {
+          this.proc?.kill("SIGTERM");
+        } catch {
+          try {
+            this.proc?.kill("SIGKILL");
+          } catch {
+            resolve();
+          }
+        }
+          setTimeout(() => resolve(), 5000);
+      }).then(() => {
+        this.proc = null;
+        this.output = null;
+        transcoderRunningGauge.set(0);
+      });
+    }
   }
 }
 

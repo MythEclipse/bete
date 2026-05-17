@@ -113,11 +113,8 @@ export function parseModerationResponse(
     }
 
     if (foundIds.has(finalId)) {
-      log.warn(
-        { duplicateId: finalId },
-        "Skipping duplicate/rounded message_id",
-      );
-      return null;
+      log.warn({ duplicateId: finalId }, "Duplicate message_id in response");
+      throw new Error(`Duplicate message_id: ${finalId}`);
     }
 
     foundIds.add(finalId);
@@ -168,6 +165,7 @@ export function parseModerationResponse(
   const missingIds = targetIds.filter((id) => !foundIds.has(id));
   if (missingIds.length > 0) {
     log.warn({ missingIds }, "Some target IDs missing in response");
+    throw new Error(`Missing target IDs: ${missingIds.join(",")}`);
   }
 
   return filteredResults;
@@ -252,21 +250,41 @@ Return ONLY valid JSON, no other text.`;
             }),
           },
         );
-
-        if (!response.ok) {
-          const text = await response.text();
-          throw new Error(`LLM API error ${response.status}: ${text}`);
+        // Read the response body once (either text() or json()), then reuse it.
+        let rawBody: string | undefined = undefined;
+        if (typeof response.text === "function") {
+          try {
+            rawBody = await response.text();
+          } catch {
+            rawBody = undefined;
+          }
+        } else if (typeof response.json === "function") {
+          try {
+            const j = await response.json();
+            rawBody = JSON.stringify(j);
+          } catch {
+            rawBody = undefined;
+          }
         }
 
-        const bodyText = await response.text();
+        if (!response.ok) {
+          throw new Error(
+            `LLM API error ${response.status}: ${rawBody ?? "(no body)"}`,
+          );
+        }
+
+        if (!rawBody) {
+          throw new Error("Empty LLM response");
+        }
+
+        // Try to parse the body as JSON, with fallback to scanning for an object
         try {
-          return JSON.parse(bodyText);
+          return JSON.parse(rawBody);
         } catch (e) {
-          // Handle cases where the API provider returns trailing garbage
-          const start = bodyText.indexOf("{");
-          const end = bodyText.lastIndexOf("}");
+          const start = rawBody.indexOf("{");
+          const end = rawBody.lastIndexOf("}");
           if (start !== -1 && end !== -1 && end > start) {
-            return JSON.parse(bodyText.substring(start, end + 1));
+            return JSON.parse(rawBody.substring(start, end + 1));
           }
           throw e;
         }

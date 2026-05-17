@@ -53,6 +53,17 @@ export const wsMessagesCounter = new Counter({
   labelNames: ["message_type"],
 });
 
+// Transcoder metrics
+export const transcoderRestartsCounter = new Counter({
+  name: "transcoder_restarts_total",
+  help: "Total number of transcoder restarts",
+});
+
+export const transcoderRunningGauge = new Gauge({
+  name: "transcoder_running",
+  help: "Whether a transcoder process is currently running (1/0)",
+});
+
 // HTTP metrics
 export const httpRequestDurationHistogram = new Histogram({
   name: "http_request_duration_seconds",

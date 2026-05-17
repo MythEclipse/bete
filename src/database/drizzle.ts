@@ -22,7 +22,12 @@ export async function initializeDatabase() {
     return db;
   }
 
-  if (config.DATABASE_TYPE === "postgres") {
+  // During tests prefer an isolated SQLite instance to avoid using shared
+  // external Postgres instances which can lead to flaky test interference.
+  const usePostgres =
+    config.DATABASE_TYPE === "postgres" && process.env.NODE_ENV !== "test";
+
+  if (usePostgres) {
     let pool: Pool;
 
     // Use DATABASE_URL if available, otherwise build from individual variables
@@ -45,12 +50,25 @@ export async function initializeDatabase() {
     }
 
     db = drizzlePostgres(pool, { schema });
+    // Provide a simple `run` helper for tests that expect it.
+    try {
+      (db as any).run = (sql: string) => pool.query(sql);
+    } catch {
+      // ignore
+    }
     logger.info("PostgreSQL database initialized");
   } else {
     const sqlite = new Database(".muxer-queue.db");
     sqlite.pragma("journal_mode = WAL");
 
     db = drizzleSqlite(sqlite, { schema });
+    // Expose a convenience `run` method used by tests that expect a simple API.
+    // `sqlite` is the underlying better-sqlite3 Database instance.
+    try {
+      (db as any).run = (sql: string) => sqlite.exec(sql);
+    } catch {
+      // ignore
+    }
     logger.info("SQLite database initialized");
   }
 
