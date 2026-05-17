@@ -1,10 +1,15 @@
 export class AppError extends Error {
+  public code: string;
+  public statusCode: number;
+
   constructor(
     message: string,
-    public code: string,
-    public statusCode: number = 500,
+    code: string,
+    statusCode: number = 500,
   ) {
     super(message);
+    this.code = code;
+    this.statusCode = statusCode;
     this.name = "AppError";
     Error.captureStackTrace(this, this.constructor);
   }
@@ -32,11 +37,14 @@ export class VoiceConnectionError extends AppError {
 }
 
 export class ValidationError extends AppError {
+  public details?: Record<string, string[]>;
+
   constructor(
     message: string,
-    public details?: Record<string, string[]>,
+    details?: Record<string, string[]>,
   ) {
     super(message, "VALIDATION_ERROR", 400);
+    this.details = details;
     this.name = "ValidationError";
   }
 }
