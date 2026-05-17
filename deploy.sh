@@ -25,6 +25,17 @@ echo "📦 Syncing files to VPS..."
 $SSH_CMD "mkdir -p $REMOTE_DIR"
 eval "$RSYNC_CMD ./ $VPS_USER@$VPS_HOST:$REMOTE_DIR"
 
+if [ -f .env ]; then
+  echo "🔒 Copying local .env to VPS..."
+  if [ -z "$SSH_KEY_PATH" ]; then
+    scp -o StrictHostKeyChecking=no .env $VPS_USER@$VPS_HOST:$REMOTE_DIR/.env
+  else
+    scp -i $SSH_KEY_PATH -o StrictHostKeyChecking=no .env $VPS_USER@$VPS_HOST:$REMOTE_DIR/.env
+  fi
+else
+  echo "⚠️ No local .env found to copy."
+fi
+
 echo "🔄 Rebuilding and restarting Docker containers..."
 $SSH_CMD << EOF
   cd $REMOTE_DIR
