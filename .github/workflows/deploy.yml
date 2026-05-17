@@ -19,7 +19,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: "."
+          source: ".,!node_modules,!.git,!.github,!recordings,!dist,!.env,!*.db,!*.db-shm,!*.db-wal,!test_out.nut"
           target: "/opt/imphenbot"
           rm: false
 
