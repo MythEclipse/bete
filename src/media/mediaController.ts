@@ -121,7 +121,10 @@ export class MediaController {
     this.assertCanStartMusic();
     this.queueStore.add(resolved, mode, options.requestedBy);
     logger.info(
-      { title: resolved.title, queueSize: this.queueStore.snapshot().queue.length },
+      {
+        title: resolved.title,
+        queueSize: this.queueStore.snapshot().queue.length,
+      },
       "Added to queue",
     );
     this.startNextIfIdle();
@@ -225,7 +228,11 @@ export class MediaController {
 
     const token = ++this.playbackToken;
     logger.info(
-      { title: item.title, token, queueSize: this.queueStore.snapshot().queue.length },
+      {
+        title: item.title,
+        token,
+        queueSize: this.queueStore.snapshot().queue.length,
+      },
       "Starting playback",
     );
     try {

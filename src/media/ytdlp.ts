@@ -53,7 +53,10 @@ export function createYtDlp(dependencies: YtDlpDependencies = {}): YtDlpClient {
         console.warn("[ytdlp] No audio URL returned for:", url);
         throw new Error(`Failed to resolve audio URL for: ${url}`);
       }
-      console.log("[ytdlp] Resolved audio URL:", directUrl.slice(0, 100) + "...");
+      console.log(
+        "[ytdlp] Resolved audio URL:",
+        directUrl.slice(0, 100) + "...",
+      );
       return directUrl;
     },
 

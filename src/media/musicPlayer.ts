@@ -72,7 +72,10 @@ export function createMusicPlayer(
           const errorMsg = `ffmpeg exited with code ${code}`;
           console.error("[musicPlayer]", errorMsg);
           if (stderrOutput) {
-            console.error("[musicPlayer] ffmpeg stderr:", stderrOutput.slice(-500));
+            console.error(
+              "[musicPlayer] ffmpeg stderr:",
+              stderrOutput.slice(-500),
+            );
           }
           reject(new Error(errorMsg));
         });
@@ -92,16 +95,12 @@ export function createMusicPlayer(
 }
 
 export function buildFfmpegArgs(source: string): string[] {
-  const args = [
-    "-hide_banner",
-    "-loglevel",
-    "warning",
-  ];
+  const args = ["-hide_banner", "-loglevel", "warning"];
 
   if (source.startsWith("http://") || source.startsWith("https://")) {
     args.push(
       "-user_agent",
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36"
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36",
     );
   }
 
@@ -120,6 +119,10 @@ export function buildFfmpegArgs(source: string): string[] {
     "pipe:1",
   );
 
-  console.log("[ffmpeg] Command:", "ffmpeg", args.join(" ").slice(0, 200) + "...");
+  console.log(
+    "[ffmpeg] Command:",
+    "ffmpeg",
+    args.join(" ").slice(0, 200) + "...",
+  );
   return args;
 }

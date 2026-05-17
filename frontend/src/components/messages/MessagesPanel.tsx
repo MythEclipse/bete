@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { Channel, Guild } from "../../types/voice";
 import type { MessageRecord } from "../../types/messages";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
@@ -5,6 +6,8 @@ import { Select } from "../ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { ImageGrid } from "./ImageGrid";
 import { MessageFeed } from "./MessageFeed";
+import { Input } from "../ui/input";
+import { Button } from "../ui/button";
 
 interface MessagesPanelProps {
   guilds: Guild[];
@@ -27,6 +30,40 @@ export function MessagesPanel({
   onChannelChange,
   onReanalyze,
 }: MessagesPanelProps) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<MessageRecord[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const params = new URLSearchParams({
+        q: searchQuery,
+        ...(selectedChannel && { channelId: selectedChannel }),
+        limit: "50",
+      });
+
+      const response = await fetch(`/api/analysis/search?${params}`);
+      if (!response.ok) throw new Error("Search failed");
+
+      const data = await response.json();
+      setSearchResults(data.results || []);
+    } catch (error) {
+      console.error("Search error:", error);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const displayMessages = showSearch ? searchResults : messages;
+
   return (
     <div className="grid gap-6">
       <Card>
@@ -49,16 +86,67 @@ export function MessagesPanel({
           />
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Search Messages</CardTitle>
+          <CardDescription>Search for messages by content</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="flex gap-2">
+            <Input
+              placeholder="Search message content..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              disabled={isSearching}
+            />
+            <Button onClick={handleSearch} disabled={isSearching || !searchQuery.trim()}>
+              {isSearching ? "Searching..." : "Search"}
+            </Button>
+            {showSearch && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowSearch(false);
+                  setSearchResults([]);
+                  setSearchQuery("");
+                }}
+              >
+                Clear
+              </Button>
+            )}
+          </div>
+          {showSearch && searchResults.length > 0 && (
+            <div className="text-sm text-muted-foreground">
+              Found {searchResults.length} result{searchResults.length !== 1 ? "s" : ""}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <Tabs defaultValue="all">
         <TabsList>
-          <TabsTrigger value="all">All Messages</TabsTrigger>
+          <TabsTrigger value="all">
+            {showSearch ? "Search Results" : "All Messages"}
+          </TabsTrigger>
           <TabsTrigger value="images">Images</TabsTrigger>
         </TabsList>
         <TabsContent value="all">
-          <MessageFeed messages={messages} onReanalyze={onReanalyze} emptyText={selectedChannel ? "No captures yet." : "Select a channel to view captures."} />
+          <MessageFeed
+            messages={displayMessages}
+            onReanalyze={onReanalyze}
+            emptyText={
+              showSearch
+                ? "No messages found matching your search."
+                : selectedChannel
+                  ? "No captures yet."
+                  : "Select a channel to view captures."
+            }
+          />
         </TabsContent>
         <TabsContent value="images">
-          <ImageGrid messages={messages} />
+          <ImageGrid messages={displayMessages} />
         </TabsContent>
       </Tabs>
     </div>

@@ -1,12 +1,14 @@
 import type { Router } from "express";
 import express from "express";
 import { AppError } from "../errors";
+import type { MessageRecord } from "../moderation/types";
 import {
   getAnalysisQueueStatus,
   queueMessageAnalysis,
 } from "../moderation/aiAnalyzer";
 import {
   getMessageById,
+  searchMessages,
   updateMessageAIAnalysis,
 } from "../moderation/messageStore";
 
@@ -18,6 +20,51 @@ export function createAnalysisRoutes(): Router {
     try {
       const status = getAnalysisQueueStatus();
       res.json(status);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // GET /api/analysis/search - Search for message IDs by query
+  router.get("/analysis/search", async (req, res, next) => {
+    try {
+      const {
+        q,
+        channelId,
+        limit = "20",
+      } = req.query as {
+        q?: string;
+        channelId?: string;
+        limit?: string;
+      };
+
+      if (!q) {
+        throw new AppError(
+          "Query parameter 'q' is required",
+          "MISSING_QUERY",
+          400,
+        );
+      }
+
+      const limitNum = Math.min(parseInt(limit) || 20, 100);
+
+      const results = await searchMessages({
+        query: q,
+        channelId,
+        limit: limitNum,
+      });
+
+      res.json({
+        query: q,
+        count: results.length,
+        results: results.map((msg: MessageRecord) => ({
+          id: msg.id,
+          content: msg.edited_content ?? msg.content,
+          username: msg.username,
+          created_at: msg.created_at,
+          ai_status: msg.ai_status,
+        })),
+      });
     } catch (error) {
       next(error);
     }

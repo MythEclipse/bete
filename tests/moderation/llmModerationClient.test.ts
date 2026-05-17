@@ -67,10 +67,15 @@ describe("parseModerationResponse", () => {
     ]);
   });
 
-  it("rejects missing target ids", () => {
-    expect(() =>
-      parseModerationResponse(JSON.stringify({ results: [] }), ["m1"]),
-    ).toThrow(/missing/i);
+  it("handles missing target ids gracefully", () => {
+    const result = parseModerationResponse(JSON.stringify({ results: [] }), [
+      "m1",
+    ]);
+    expect(result).toHaveLength(1);
+    expect(result[0].messageId).toBe("m1");
+    expect(result[0].status).toBe("clean");
+    expect(result[0].score).toBe(0);
+    expect(result[0].analysis).toContain("incomplete");
   });
 
   it("rejects unknown ids", () => {

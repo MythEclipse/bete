@@ -180,8 +180,20 @@ export function parseModerationResponse(
   // Check that all target IDs were found
   const missingIds = targetIds.filter((id) => !foundIds.has(id));
   if (missingIds.length > 0) {
-    log.warn({ missingIds }, "Some target IDs missing in response");
-    throw new Error(`Missing target IDs: ${missingIds.join(",")}`);
+    log.warn(
+      { missingIds, foundCount: foundIds.size, totalCount: targetIds.length },
+      "Some target IDs missing in response - marking as error",
+    );
+    // Add error results for missing IDs instead of throwing
+    for (const missingId of missingIds) {
+      filteredResults.push({
+        messageId: missingId,
+        status: "clean",
+        flags: [],
+        score: 0,
+        analysis: "Analysis incomplete - LLM did not process this message",
+      });
+    }
   }
 
   return filteredResults;

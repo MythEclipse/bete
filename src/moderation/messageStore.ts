@@ -639,3 +639,54 @@ export async function getAttachmentsForMessages(
     throw error;
   }
 }
+
+export async function searchMessages(input: {
+  query: string;
+  channelId?: string;
+  limit?: number;
+}): Promise<MessageRecord[]> {
+  try {
+    const { query, channelId, limit = 20 } = input;
+    const database = db();
+
+    const searchPattern = `%${query}%`;
+    const conditions: (SQL | undefined)[] = [isNull(messagesTable.deleted_at)];
+
+    if (channelId) {
+      conditions.push(
+        or(
+          eq(messagesTable.channel_id, channelId),
+          eq(messagesTable.thread_id, channelId),
+        ),
+      );
+    }
+
+    conditions.push(
+      or(
+        sql`${messagesTable.content} LIKE ${searchPattern}`,
+        sql`${messagesTable.edited_content} LIKE ${searchPattern}`,
+      ),
+    );
+
+    const validConditions = conditions.filter((c): c is SQL => c !== undefined);
+
+    const rows = await database
+      .select()
+      .from(messagesTable)
+      .where(and(...validConditions))
+      .orderBy(desc(messagesTable.created_at))
+      .limit(limit);
+
+    return rows as MessageRecord[];
+  } catch (error) {
+    logger.error(
+      {
+        query: input.query,
+        channelId: input.channelId,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      "Failed to search messages",
+    );
+    throw error;
+  }
+}

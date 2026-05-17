@@ -188,7 +188,9 @@ function scheduleConversationAnalysis(conversationKey: string): void {
 
   // If we have available slots, process immediately with shorter debounce
   const debounceTime =
-    activeRequests < MAX_ACTIVE_REQUESTS ? Math.min(DEBOUNCE_MS, 500) : DEBOUNCE_MS;
+    activeRequests < MAX_ACTIVE_REQUESTS
+      ? Math.min(DEBOUNCE_MS, 500)
+      : DEBOUNCE_MS;
 
   // Set new debounced timer
   const timer = setTimeout(async () => {

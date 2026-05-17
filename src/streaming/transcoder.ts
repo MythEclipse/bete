@@ -31,16 +31,15 @@ export class Transcoder {
     const bitrate = String(this.opts.bitrate ?? "2500k");
     const preset = this.opts.preset ?? "superfast";
 
-    const args = [
-      "-hide_banner",
-      "-loglevel",
-      "warning",
-    ];
+    const args = ["-hide_banner", "-loglevel", "warning"];
 
-    if (this.source.startsWith("http://") || this.source.startsWith("https://")) {
+    if (
+      this.source.startsWith("http://") ||
+      this.source.startsWith("https://")
+    ) {
       args.push(
         "-user_agent",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36",
       );
     }
 
@@ -63,7 +62,7 @@ export class Transcoder {
       "libopus",
       "-f",
       "matroska",
-      "-"
+      "-",
     );
 
     const cmd = spawn("ffmpeg", args, { stdio: ["ignore", "pipe", "pipe"] });
