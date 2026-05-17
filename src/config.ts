@@ -80,7 +80,7 @@ const configSchema = z
   })
   .superRefine((value, ctx) => {
     if (!value.AI_ANALYSIS_ENABLED) {
-      // Continue to database validation
+      // Continue to database validationa
     } else if (!value.AI_LLM_API_KEY) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
