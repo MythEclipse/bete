@@ -71,19 +71,19 @@ export class Streamer {
           targetSource = urls[0] ?? source;
         }
 
-        const fps = options.fps ?? 30;
-        const bitrateStr = String(options.bitrate ?? 2500).replace(/k$/i, "");
-        const bitrateVideo = parseInt(bitrateStr, 10) || 2500;
+        const fps = options.fps ?? 60;
+        const bitrateStr = String(options.bitrate ?? 8000).replace(/k$/i, "");
+        const bitrateVideo = parseInt(bitrateStr, 10) || 8000;
 
         console.log("[Streamer] Starting screen share for source:", typeof targetSource === "string" ? targetSource.slice(0, 50) + "..." : "ReadableStream");
         const { command, output } = dankPrepareStream(targetSource, {
           encoder: Encoders.software({
-            x264: { preset: (options.presetH26x as any) ?? "superfast" },
-            x265: { preset: (options.presetH26x as any) ?? "superfast" },
+            x264: { preset: (options.presetH26x as any) ?? "ultrafast" },
+            x265: { preset: (options.presetH26x as any) ?? "ultrafast" },
           }),
           videoCodec: Utils.normalizeVideoCodec("H264"),
-          width: 1280,
-          height: 720,
+          width: 1920,
+          height: 1080,
           bitrateVideo: bitrateVideo,
           frameRate: fps,
           includeAudio: options.includeAudio !== false,
