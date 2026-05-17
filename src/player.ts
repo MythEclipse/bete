@@ -76,6 +76,7 @@ export class DiscordPlayer {
       this.setResourceVolume(nextVolume);
     }
     this.player.play(resource);
+    this.unpause(owner);
     this.connection?.subscribe(this.player);
   }
 

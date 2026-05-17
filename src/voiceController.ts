@@ -159,7 +159,7 @@ export class VoiceController {
       stopRecording(this.activeGuildId);
     }
 
-    discordPlayer.pause();
+    discordPlayer.stop();
     this.activeGuildId = null;
     this.activeChannelId = null;
     this.activeChannelName = null;

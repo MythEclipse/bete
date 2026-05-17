@@ -77,10 +77,20 @@ export function createMusicPlayer(
 }
 
 export function buildFfmpegArgs(source: string): string[] {
-  return [
+  const args = [
     "-hide_banner",
     "-loglevel",
     "warning",
+  ];
+
+  if (source.startsWith("http://") || source.startsWith("https://")) {
+    args.push(
+      "-user_agent",
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36"
+    );
+  }
+
+  args.push(
     "-i",
     source,
     "-vn",
@@ -93,5 +103,7 @@ export function buildFfmpegArgs(source: string): string[] {
     "-f",
     "s16le",
     "pipe:1",
-  ];
+  );
+
+  return args;
 }

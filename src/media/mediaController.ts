@@ -86,6 +86,10 @@ export class MediaController {
       this.playbackToken++;
       this.playback?.stop();
       this.playback = null;
+      this.assertCanStartMusic();
+      this.queueStore.clear();
+      this.queueStore.add(resolved, mode, options.requestedBy);
+      this.queueStore.startNext();
       return this.startScreen(resolved.source);
     }
 
@@ -179,6 +183,7 @@ export class MediaController {
       this.screenPlayback = await screenController.start(source);
     } catch (error) {
       this.activeMode = null;
+      this.queueStore.failCurrent();
       throw error;
     }
 
@@ -193,6 +198,7 @@ export class MediaController {
     if (!this.screenPlayback || this.activeMode !== "screen") return;
     this.screenPlayback = null;
     this.activeMode = null;
+    this.queueStore.completeCurrent();
     this.emitState();
   }
 
