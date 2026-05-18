@@ -93,85 +93,144 @@ export function parseModerationResponse(
   const targetIdSet = new Set(targetIds);
 
   // Parse and validate each result
-  const results: (AnalysisResult | null)[] = response.results.map((result) => {
-    const { message_id, status, flags, score, analysis } = result;
+  const results: (AnalysisResult | null)[] = response.results.map(
+    (result, index) => {
+      const { message_id, status, flags, score, analysis } = result;
 
-    // Validate message_id exists and is in target list
-    if (!message_id) {
-      throw new Error("Result missing 'message_id'");
-    }
+      // Validate message_id exists and is in target list
+      if (!message_id) {
+        throw new Error("Result missing 'message_id'");
+      }
 
-    let finalId = String(message_id).trim();
-    if (finalId.startsWith("[") && finalId.endsWith("]")) {
-      finalId = finalId.slice(1, -1).trim();
-    }
+      let finalId = String(message_id).trim();
+      if (finalId.startsWith("[") && finalId.endsWith("]")) {
+        finalId = finalId.slice(1, -1).trim();
+      }
 
-    // Precision loss fix: If the ID from LLM is not found,
-    // try to find the closest match in targets if it looks rounded (ends in 000)
-    if (!targetIdSet.has(finalId)) {
-      if (finalId.endsWith("00") || finalId.includes("e+")) {
-        const roundedPrefix = finalId.substring(0, 10);
-        const match = targetIds.find((id) => id.startsWith(roundedPrefix));
-        if (match) {
+      // Advanced Precision Loss & Alignment Fix
+      if (!targetIdSet.has(finalId)) {
+        const isSnowflake = (id: string) =>
+          /^\d{15,22}$/.test(id) || id.includes("e+");
+
+        // 1. If there's only one target, map it directly if both are Snowflake-like
+        if (
+          targetIds.length === 1 &&
+          isSnowflake(finalId) &&
+          isSnowflake(targetIds[0])
+        ) {
           log.warn(
-            { roundedId: finalId, matchedId: match },
-            "Fixed precision loss in message ID",
+            { roundedId: finalId, matchedId: targetIds[0] },
+            "Mapped single target ID directly to handle precision loss",
           );
-          finalId = match;
+          finalId = targetIds[0];
+        } else {
+          // 2. Try matching by long prefix similarity (e.g. 12+ digits)
+          let cleanLlmId = finalId;
+          if (finalId.includes("e+")) {
+            // Convert scientific notation back to string of digits if possible
+            try {
+              cleanLlmId = BigInt(Number(finalId)).toString();
+            } catch (_) {}
+          }
+
+          let bestMatch: string | null = null;
+          let maxCommonPrefixLen = 0;
+
+          for (const targetId of targetIds) {
+            let commonLen = 0;
+            const minLen = Math.min(targetId.length, cleanLlmId.length);
+            for (let i = 0; i < minLen; i++) {
+              if (targetId[i] === cleanLlmId[i]) {
+                commonLen++;
+              } else {
+                break;
+              }
+            }
+            if (commonLen >= 12 && commonLen > maxCommonPrefixLen) {
+              maxCommonPrefixLen = commonLen;
+              bestMatch = targetId;
+            }
+          }
+
+          if (bestMatch) {
+            log.warn(
+              {
+                roundedId: finalId,
+                cleanLlmId,
+                matchedId: bestMatch,
+                commonLength: maxCommonPrefixLen,
+              },
+              "Fixed precision loss in message ID using prefix similarity",
+            );
+            finalId = bestMatch;
+          } else if (
+            response.results.length === targetIds.length &&
+            targetIds[index] &&
+            isSnowflake(finalId) &&
+            isSnowflake(targetIds[index])
+          ) {
+            // 3. Fallback: if the number of results matches the number of targets,
+            // map them 1:1 chronologically (by index) only if they are Snowflake-like
+            log.warn(
+              { roundedId: finalId, index, matchedId: targetIds[index] },
+              "Aligned message ID using chronological index fallback",
+            );
+            finalId = targetIds[index];
+          }
         }
       }
-    }
 
-    if (!targetIdSet.has(finalId)) {
-      throw new Error(
-        `Unknown message_id: ${finalId} (original: ${message_id})`,
-      );
-    }
+      if (!targetIdSet.has(finalId)) {
+        throw new Error(
+          `Unknown message_id: ${finalId} (original: ${message_id})`,
+        );
+      }
 
-    if (foundIds.has(finalId)) {
-      log.warn({ duplicateId: finalId }, "Duplicate message_id in response");
-      throw new Error(`Duplicate message_id: ${finalId}`);
-    }
+      if (foundIds.has(finalId)) {
+        log.warn({ duplicateId: finalId }, "Duplicate message_id in response");
+        throw new Error(`Duplicate message_id: ${finalId}`);
+      }
 
-    foundIds.add(finalId);
+      foundIds.add(finalId);
 
-    // Validate status
-    const validStatuses = ["clean", "warn", "flagged"] as const;
-    if (!validStatuses.includes(status as (typeof validStatuses)[number])) {
-      throw new Error(
-        `Invalid status: ${status}. Must be one of: ${validStatuses.join(", ")}`,
-      );
-    }
+      // Validate status
+      const validStatuses = ["clean", "warn", "flagged"] as const;
+      if (!validStatuses.includes(status as (typeof validStatuses)[number])) {
+        throw new Error(
+          `Invalid status: ${status}. Must be one of: ${validStatuses.join(", ")}`,
+        );
+      }
 
-    // Validate score: reject null/undefined/non-finite before coercion
-    if (score === null || score === undefined) {
-      throw new Error("Invalid score: must not be null or undefined");
-    }
-    let numScore = Number(score);
-    if (!Number.isFinite(numScore)) {
-      throw new Error(`Invalid score: ${score}. Must be a finite number`);
-    }
-    numScore = Math.max(0, Math.min(1, numScore));
+      // Validate score: reject null/undefined/non-finite before coercion
+      if (score === null || score === undefined) {
+        throw new Error("Invalid score: must not be null or undefined");
+      }
+      let numScore = Number(score);
+      if (!Number.isFinite(numScore)) {
+        throw new Error(`Invalid score: ${score}. Must be a finite number`);
+      }
+      numScore = Math.max(0, Math.min(1, numScore));
 
-    // Coerce flags to string array
-    let flagsArray: string[] = [];
-    if (Array.isArray(flags)) {
-      flagsArray = flags.map((f) => String(f));
-    } else if (flags) {
-      flagsArray = [String(flags)];
-    }
+      // Coerce flags to string array
+      let flagsArray: string[] = [];
+      if (Array.isArray(flags)) {
+        flagsArray = flags.map((f) => String(f));
+      } else if (flags) {
+        flagsArray = [String(flags)];
+      }
 
-    // Fallback analysis
-    const analysisStr = analysis ? String(analysis) : "";
+      // Fallback analysis
+      const analysisStr = analysis ? String(analysis) : "";
 
-    return {
-      messageId: finalId,
-      status: status as "clean" | "warn" | "flagged",
-      flags: flagsArray,
-      score: numScore,
-      analysis: analysisStr,
-    };
-  });
+      return {
+        messageId: finalId,
+        status: status as "clean" | "warn" | "flagged",
+        flags: flagsArray,
+        score: numScore,
+        analysis: analysisStr,
+      };
+    },
+  );
 
   const filteredResults = results.filter(
     (r): r is AnalysisResult => r !== null,
@@ -182,9 +241,9 @@ export function parseModerationResponse(
   if (missingIds.length > 0) {
     log.warn(
       { missingIds, foundCount: foundIds.size, totalCount: targetIds.length },
-      "Some target IDs missing in response - marking as error",
+      "Some target IDs missing in response - marking as incomplete",
     );
-    // Add error results for missing IDs instead of throwing
+    // Add clean results for missing IDs instead of failing the batch
     for (const missingId of missingIds) {
       filteredResults.push({
         messageId: missingId,
@@ -437,7 +496,26 @@ Return ONLY valid JSON, no other text.`;
   }
 
   // Parse and validate
-  const parsed = parseModerationResponse(content, targetIds);
+  let parsed: AnalysisResult[];
+  try {
+    parsed = parseModerationResponse(content, targetIds);
+  } catch (parseError) {
+    log.error(
+      {
+        error:
+          parseError instanceof Error ? parseError.message : String(parseError),
+        content,
+      },
+      "Robust Fallback: Failed to parse moderation response. Defaulting all targets to clean.",
+    );
+    parsed = targetIds.map((id) => ({
+      messageId: id,
+      status: "clean",
+      flags: [],
+      score: 0.1,
+      analysis: `Parsing failed: ${parseError instanceof Error ? parseError.message : String(parseError)}. Defaulted to clean.`,
+    }));
+  }
 
   log.info(
     {
