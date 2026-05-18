@@ -5,6 +5,7 @@ import { MessagesPanel } from "./components/messages/MessagesPanel";
 import { ReviewPanel } from "./components/review/ReviewPanel";
 import { Tabs, TabsContent } from "./components/ui/tabs";
 import { VoicePanel } from "./components/voice/VoicePanel";
+import { RecordingsPanel } from "./components/recordings/RecordingsPanel";
 import { AuthOverlay } from "./components/layout/AuthOverlay";
 import { useDashboardSocket } from "./hooks/useDashboardSocket";
 import { mergeMessages, useMessages } from "./hooks/useMessages";
@@ -75,6 +76,10 @@ export default function App() {
     onMessageAnalyzed: (message) => messages.setMessages((prev) => mergeMessages(prev, [message])),
     onAttachmentUploaded: () => messages.fetchMessages(selectedTextChannel).catch(() => undefined),
     onMediaState: media.setMediaState,
+    onVoiceRecordingUploaded: (recording) => {
+      const event = new CustomEvent("voice_recording_uploaded", { detail: recording });
+      window.dispatchEvent(event);
+    },
     onPcm: handleIncomingPcm,
   });
 
@@ -178,7 +183,7 @@ export default function App() {
     await patchUIState({ isListening: true });
   }, [isListening, patchUIState]);
 
-  const tabs = useMemo(() => ["voice", "media", "messages", "review"] as DashboardTab[], []);
+  const tabs = useMemo(() => ["voice", "media", "messages", "recordings", "review"] as DashboardTab[], []);
 
   return (
     <DashboardLayout
@@ -189,7 +194,7 @@ export default function App() {
     >
       <div className="md:hidden">
         <Tabs value={activeTab} onValueChange={(value) => patchUIState({ activeTab: value as DashboardTab })}>
-          <div className="mb-4 grid grid-cols-4 gap-2 rounded-2xl bg-muted p-1">
+          <div className="mb-4 grid grid-cols-5 gap-2 rounded-2xl bg-muted p-1">
             {tabs.map((tab) => (
               <button key={tab} className={`rounded-xl px-2 py-2 text-xs font-medium ${activeTab === tab ? "bg-background text-foreground" : "text-muted-foreground"}`} onClick={() => patchUIState({ activeTab: tab })}>
                 {tab}
@@ -249,6 +254,13 @@ export default function App() {
             onChannelChange={(channelId) => patchUIState({ selectedTextChannel: channelId })}
             onReanalyze={messages.reanalyze}
           />
+        </TabsContent>
+        <TabsContent value="recordings">
+          {!isAuthenticated ? (
+            <AuthOverlay onAuthenticated={() => setIsAuthenticated(true)} />
+          ) : (
+            <RecordingsPanel />
+          )}
         </TabsContent>
         <TabsContent value="review">
           <ReviewPanel messages={messages.messages} onReanalyze={messages.reanalyze} />

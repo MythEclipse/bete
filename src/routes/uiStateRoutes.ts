@@ -9,7 +9,7 @@ export interface SharedUIState {
   selectedVoiceChannel: string;
   selectedTextGuild: string;
   selectedTextChannel: string;
-  activeTab: "voice" | "messages" | "media" | "review";
+  activeTab: "voice" | "messages" | "media" | "review" | "recordings";
   isListening: boolean;
   isStreaming: boolean;
 }

@@ -1,4 +1,4 @@
-import { Bot, MessageSquare, Music2, ShieldAlert, Volume2 } from "lucide-react";
+import { Bot, MessageSquare, Music2, ShieldAlert, Volume2, Mic } from "lucide-react";
 import type { DashboardTab } from "../../types/ui";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
@@ -7,6 +7,7 @@ const navItems: Array<{ id: DashboardTab; label: string; icon: typeof Volume2 }>
   { id: "voice", label: "Voice", icon: Volume2 },
   { id: "media", label: "Media", icon: Music2 },
   { id: "messages", label: "Messages", icon: MessageSquare },
+  { id: "recordings", label: "Recordings", icon: Mic },
   { id: "review", label: "Review", icon: ShieldAlert },
 ];
 

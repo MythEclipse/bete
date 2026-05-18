@@ -25,6 +25,7 @@ import {
   finalizeRecordingSession,
   type RecordingSession,
 } from "./recorder/sessionRecording";
+import { uploadRecordingSegment } from "./recorder/uploader";
 import { retryWithBackoff } from "./retry";
 import type { PcmBroadcaster } from "./types";
 
@@ -211,6 +212,24 @@ export async function startRecording(
             "Metadata saved",
           );
         }
+
+        // Trigger async voice segment upload
+        const segmentId = `${userId}-${currentSegment.startTime}`;
+        uploadRecordingSegment({
+          id: segmentId,
+          oggPath: currentSegment.filename,
+          userId: userMetadata.userId,
+          username: userMetadata.username,
+          avatarUrl: userMetadata.avatarUrl,
+          guildId: channel.guild.id,
+          channelId: channel.id,
+          channelName: channel.name,
+        }).catch((err) => {
+          logger.error(
+            { segmentId, error: err.message },
+            "Upload segment trigger failed",
+          );
+        });
       });
 
       currentSegment.out.on("error", (err) => {

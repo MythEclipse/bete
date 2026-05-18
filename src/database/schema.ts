@@ -201,6 +201,41 @@ export const pgAIAnalysisRunsTable = pgTable(
   }),
 );
 
+/**
+ * Voice Recordings Table (PostgreSQL)
+ * Stores voice recording segment metadata and upload status
+ */
+export const pgVoiceRecordingsTable = pgTable(
+  "voice_recordings",
+  {
+    id: pgText("id").primaryKey(),
+    user_id: pgText("user_id").notNull(),
+    username: pgText("username").notNull(),
+    avatar_url: pgText("avatar_url"),
+    guild_id: pgText("guild_id"),
+    channel_id: pgText("channel_id"),
+    channel_name: pgText("channel_name"),
+    filename: pgText("filename").notNull(),
+    size_bytes: pgInteger("size_bytes").notNull(),
+    download_url: pgText("download_url"),
+    upload_status: pgText("upload_status", {
+      enum: ["pending", "uploaded", "failed"],
+    })
+      .notNull()
+      .default("pending"),
+    upload_error: pgText("upload_error"),
+    created_at: pgBigint("created_at", { mode: "number" }).notNull(),
+    uploaded_at: pgBigint("uploaded_at", { mode: "number" }),
+  },
+  (table) => ({
+    userIdIdx: pgIndex("idx_voice_recordings_user_id").on(table.user_id),
+    channelIdIdx: pgIndex("idx_voice_recordings_channel_id").on(
+      table.channel_id,
+    ),
+    createdIdx: pgIndex("idx_voice_recordings_created_at").on(table.created_at),
+  }),
+);
+
 // SQLite Schema
 // =============
 
@@ -378,6 +413,43 @@ export const sqliteAIAnalysisRunsTable = sqliteTable(
   }),
 );
 
+/**
+ * Voice Recordings Table (SQLite)
+ * Stores voice recording segment metadata and upload status
+ */
+export const sqliteVoiceRecordingsTable = sqliteTable(
+  "voice_recordings",
+  {
+    id: sqliteText("id").primaryKey(),
+    user_id: sqliteText("user_id").notNull(),
+    username: sqliteText("username").notNull(),
+    avatar_url: sqliteText("avatar_url"),
+    guild_id: sqliteText("guild_id"),
+    channel_id: sqliteText("channel_id"),
+    channel_name: sqliteText("channel_name"),
+    filename: sqliteText("filename").notNull(),
+    size_bytes: sqliteInteger("size_bytes").notNull(),
+    download_url: sqliteText("download_url"),
+    upload_status: sqliteText("upload_status", {
+      enum: ["pending", "uploaded", "failed"],
+    })
+      .notNull()
+      .default("pending"),
+    upload_error: sqliteText("upload_error"),
+    created_at: sqliteInteger("created_at").notNull(),
+    uploaded_at: sqliteInteger("uploaded_at"),
+  },
+  (table) => ({
+    userIdIdx: sqliteIndex("idx_voice_recordings_user_id").on(table.user_id),
+    channelIdIdx: sqliteIndex("idx_voice_recordings_channel_id").on(
+      table.channel_id,
+    ),
+    createdIdx: sqliteIndex("idx_voice_recordings_created_at").on(
+      table.created_at,
+    ),
+  }),
+);
+
 // Runtime table selection based on config
 // ========================================
 
@@ -400,6 +472,11 @@ export const aiAnalysisRunsTable =
     ? pgAIAnalysisRunsTable
     : sqliteAIAnalysisRunsTable;
 
+export const voiceRecordingsTable =
+  config.DATABASE_TYPE === "postgres"
+    ? pgVoiceRecordingsTable
+    : sqliteVoiceRecordingsTable;
+
 // Export table types for use in queries
 export type MuxerJob = typeof muxerJobsTable.$inferSelect;
 export type MuxerJobInsert = typeof muxerJobsTable.$inferInsert;
@@ -415,3 +492,6 @@ export type UIStateInsert = typeof uiStateTable.$inferInsert;
 
 export type AIAnalysisRun = typeof aiAnalysisRunsTable.$inferSelect;
 export type AIAnalysisRunInsert = typeof aiAnalysisRunsTable.$inferInsert;
+
+export type VoiceRecording = typeof voiceRecordingsTable.$inferSelect;
+export type VoiceRecordingInsert = typeof voiceRecordingsTable.$inferInsert;

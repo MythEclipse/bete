@@ -15,6 +15,7 @@ export interface DashboardSocketHandlers {
   onMessageAnalyzed?: (message: MessageRecord) => void;
   onAttachmentUploaded?: () => void;
   onMediaState?: (state: MediaState) => void;
+  onVoiceRecordingUploaded?: (recording: any) => void;
   onPcm?: (data: ArrayBuffer) => void;
 }
 
@@ -74,6 +75,9 @@ export function useDashboardSocket(handlers: DashboardSocketHandlers) {
               break;
             case "media_state":
               handlersRef.current.onMediaState?.(message.state);
+              break;
+            case "voice_recording_uploaded":
+              handlersRef.current.onVoiceRecordingUploaded?.(message.data);
               break;
           }
         } catch {

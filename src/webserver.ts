@@ -28,6 +28,7 @@ import { createMessageRoutes } from "./routes/messageRoutes";
 import { createSyncRoutes } from "./routes/syncRoutes";
 import { createUIStateRoutes } from "./routes/uiStateRoutes";
 import { createVoiceRoutes } from "./routes/voiceRoutes";
+import { createRecordingsRoutes } from "./routes/recordingsRoutes";
 import { Streamer } from "./streaming";
 import type { VoiceController } from "./voiceController";
 
@@ -56,7 +57,7 @@ interface SharedUIState {
   selectedVoiceChannel: string;
   selectedTextGuild: string;
   selectedTextChannel: string;
-  activeTab: "voice" | "messages" | "media" | "review";
+  activeTab: "voice" | "messages" | "media" | "review" | "recordings";
   isListening: boolean;
   isStreaming: boolean;
 }
@@ -94,11 +95,11 @@ export function normalizeSharedUIState(
     selectedVoiceChannel: value.selectedVoiceChannel ?? "",
     selectedTextGuild: value.selectedTextGuild ?? guild,
     selectedTextChannel: value.selectedTextChannel ?? "",
-    activeTab: (["voice", "messages", "media", "review"].includes(
+    activeTab: (["voice", "messages", "media", "review", "recordings"].includes(
       value.activeTab ?? "",
     )
       ? value.activeTab
-      : "voice") as "voice" | "messages" | "media" | "review",
+      : "voice") as "voice" | "messages" | "media" | "review" | "recordings",
     isListening: value.isListening ?? false,
     isStreaming: value.isStreaming ?? false,
   };
@@ -143,13 +144,16 @@ function patchSharedUIState(patch: SharedUIStatePatch) {
     sharedUIState.selectedTextChannel = patch.selectedTextChannel;
   }
   if (
-    ["voice", "messages", "media", "review"].includes(patch.activeTab ?? "")
+    ["voice", "messages", "media", "review", "recordings"].includes(
+      patch.activeTab ?? "",
+    )
   ) {
     sharedUIState.activeTab = patch.activeTab as
       | "voice"
       | "messages"
       | "media"
-      | "review";
+      | "review"
+      | "recordings";
   }
   if (typeof patch.isListening === "boolean") {
     sharedUIState.isListening = patch.isListening;
@@ -325,6 +329,7 @@ export async function startWebserver(
   app.use("/api", createMessageRoutes());
   app.use("/api", createAnalysisRoutes());
   app.use("/api", createSyncRoutes(_client));
+  app.use("/api", createRecordingsRoutes());
   app.use(
     "/api",
     createMediaRoutes(mediaController, {

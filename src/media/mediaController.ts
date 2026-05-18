@@ -1,5 +1,5 @@
-import { createChildLogger } from "../logger";
 import { AppError } from "../errors";
+import { createChildLogger } from "../logger";
 import { discordPlayer } from "../player";
 import { MediaQueue } from "./mediaQueue";
 import { resolveMediaSource } from "./mediaResolver";

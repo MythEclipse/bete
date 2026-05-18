@@ -128,7 +128,8 @@ export type ModerationWsEvent =
   | { type: "message_analyzed"; data: MessageRecord }
   | { type: "attachment_created"; data: AttachmentRecord }
   | { type: "analysis_queue_status"; data: AnalysisQueueStatus }
-  | { type: "media_state"; state: MediaState };
+  | { type: "media_state"; state: MediaState }
+  | { type: "voice_recording_uploaded"; data: any };
 
 export interface AnalysisQueueStatus {
   queuedConversations: number;
