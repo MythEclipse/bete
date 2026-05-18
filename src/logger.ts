@@ -91,13 +91,20 @@ const serializeLogValue = (value: unknown): unknown => {
 
 const formatLogMetadata = (metadata: LogMetadata): LogMetadata => {
   return Object.fromEntries(
-    Object.entries(metadata).map(([key, value]) => [key, serializeLogValue(value)]),
+    Object.entries(metadata).map(([key, value]) => [
+      key,
+      serializeLogValue(value),
+    ]),
   );
 };
 
 const metadataFormat = winston.format((info) => {
-  const { level: _level, message: _message, timestamp: _timestamp, ...metadata } =
-    info;
+  const {
+    level: _level,
+    message: _message,
+    timestamp: _timestamp,
+    ...metadata
+  } = info;
 
   for (const key of Object.keys(metadata)) {
     delete info[key];
@@ -179,16 +186,15 @@ function wrapLogger(wLogger: winston.Logger): CustomLogger {
     warn: logAtLevel("warn"),
     info: logAtLevel("info"),
     debug: logAtLevel("debug"),
-    trace: logAtLevel("debug"), // Map trace to debug in Winston npm levels
-    fatal: logAtLevel("error"), // Map fatal to error in Winston npm levels
+    trace: logAtLevel("debug"),
+    fatal: logAtLevel("error"),
     silent: () => {},
     child: (options: any) => {
       const childWinston = wLogger.child(options);
       return wrapLogger(childWinston);
-    }
+    },
   };
 
-  // Add all winston.Logger properties/methods to custom logger to make typescript happy for standard properties
   const proxy = new Proxy(wrapped, {
     get(target, prop) {
       if (prop in target) {
@@ -199,7 +205,7 @@ function wrapLogger(wLogger: winston.Logger): CustomLogger {
         return val.bind(wLogger);
       }
       return val;
-    }
+    },
   });
 
   return proxy;

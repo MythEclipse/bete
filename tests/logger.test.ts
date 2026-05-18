@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { formatLogMetadataForTest, serializeLogValueForTest } from "../src/logger";
+import {
+  formatLogMetadataForTest,
+  serializeLogValueForTest,
+} from "../src/logger";
 
 class TestError extends Error {
   public code = "TEST_CODE";
@@ -27,7 +30,9 @@ describe("logger serialization", () => {
   it("serializes nested error metadata keys", () => {
     const error = new TestError();
 
-    expect(formatLogMetadataForTest({ error, err: error, reason: error })).toMatchObject({
+    expect(
+      formatLogMetadataForTest({ error, err: error, reason: error }),
+    ).toMatchObject({
       error: {
         name: "TestError",
         message: "test failure",
