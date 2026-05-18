@@ -132,6 +132,13 @@ export function parseModerationResponse(
       }
 
       let finalId = String(message_id).trim();
+      // Remove wrapping double quotes if any (common in some LLM outputs)
+      if (finalId.startsWith('"') && finalId.endsWith('"')) {
+        finalId = finalId.slice(1, -1).trim();
+      }
+      if (finalId.startsWith("'") && finalId.endsWith("'")) {
+        finalId = finalId.slice(1, -1).trim();
+      }
       if (finalId.startsWith("[") && finalId.endsWith("]")) {
         finalId = finalId.slice(1, -1).trim();
       }
@@ -335,6 +342,7 @@ Each result must have:
 - score: confidence score from 0 to 1
 - analysis: brief explanation
 
+Do not include reasoning, analysis steps, markdown, prose, XML tags, or comments.
 Return ONLY valid JSON, no other text.`;
 
   // Check for image attachments to support multimodal analysis
@@ -456,11 +464,11 @@ Return ONLY valid JSON, no other text.`;
                   content: messageContent,
                 },
               ],
-              temperature: 0.6,
-              top_p: 0.95,
-              max_tokens: 65536,
-              reasoning_budget: 16384,
-              chat_template_kwargs: { enable_thinking: true },
+              temperature: 0,
+              top_p: 1,
+              max_tokens: 8192,
+              response_format: { type: "json_object" },
+              chat_template_kwargs: { enable_thinking: false },
             }),
           },
         );

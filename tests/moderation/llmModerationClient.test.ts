@@ -320,6 +320,26 @@ describe("parseModerationResponse", () => {
     expect(result).toHaveLength(1);
     expect(result[0].messageId).toBe("m1");
   });
+
+  it("handles message_id returned with extra wrapping quotes", () => {
+    const result = parseModerationResponse(
+      JSON.stringify({
+        results: [
+          {
+            message_id: '"test-msg-1"',
+            status: "clean",
+            flags: [],
+            score: 0.1,
+            analysis: "OK",
+          },
+        ],
+      }),
+      ["test-msg-1"],
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0].messageId).toBe("test-msg-1");
+  });
 });
 
 describe("runModerationAnalysis", () => {
@@ -357,6 +377,45 @@ describe("runModerationAnalysis", () => {
     expect(result.results).toHaveLength(1);
     expect(result.results[0].messageId).toBe("m1");
     expect(result.raw).toEqual(mockResponse);
+  });
+
+  it("requests strict JSON output without thinking", async () => {
+    const mockResponse = {
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              results: [
+                {
+                  message_id: "m1",
+                  status: "clean",
+                  flags: [],
+                  score: 0.1,
+                  analysis: "OK",
+                },
+              ],
+            }),
+          },
+        },
+      ],
+    };
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => JSON.stringify(mockResponse),
+      json: async () => mockResponse,
+    });
+
+    await runModerationAnalysis({
+      targets: [createMessageRecord()],
+      contextText: "test context",
+    });
+
+    const requestBody = JSON.parse((global.fetch as any).mock.calls[0][1].body);
+    expect(requestBody.temperature).toBe(0);
+    expect(requestBody.response_format).toEqual({ type: "json_object" });
+    expect(requestBody.reasoning_budget).toBeUndefined();
+    expect(requestBody.chat_template_kwargs).toEqual({ enable_thinking: false });
   });
 
   it("throws on non-ok HTTP response", async () => {
