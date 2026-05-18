@@ -102,7 +102,14 @@ async function processBatch(
         Date.now() + ERROR_COOLDOWN_MS,
       );
       logger.error(
-        { conversationKey, error: lastError },
+        {
+          conversationKey,
+          error: lastError,
+          messageCount: messages.length,
+          messageIds: messages.map((m) => m.id),
+          cooldownUntil: new Date(Date.now() + ERROR_COOLDOWN_MS).toISOString(),
+          timestamp: new Date().toISOString(),
+        },
         "Batch analysis failed, will retry after cooldown",
       );
       return;
@@ -111,12 +118,21 @@ async function processBatch(
     conversationErrorCooldown.delete(conversationKey);
   } catch (error) {
     lastError = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
     conversationErrorCooldown.set(
       conversationKey,
       Date.now() + ERROR_COOLDOWN_MS,
     );
     logger.error(
-      { conversationKey, error: lastError },
+      {
+        conversationKey,
+        error: lastError,
+        stack: errorStack,
+        messageCount: messages.length,
+        messageIds: messages.map((m) => m.id),
+        cooldownUntil: new Date(Date.now() + ERROR_COOLDOWN_MS).toISOString(),
+        timestamp: new Date().toISOString(),
+      },
       "Analysis worker failed, will retry after cooldown",
     );
   } finally {

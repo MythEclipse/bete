@@ -529,11 +529,16 @@ Return ONLY valid JSON, no other text.`;
   try {
     parsed = parseModerationResponse(content, targetIds);
   } catch (parseError) {
+    const errorMsg = parseError instanceof Error ? parseError.message : String(parseError);
     log.error(
       {
-        error:
-          parseError instanceof Error ? parseError.message : String(parseError),
-        content,
+        error: errorMsg,
+        contentLength: content.length,
+        contentPreview: content.substring(0, 500),
+        fullContent: content,
+        targetIds,
+        model: config.AI_LLM_MODEL,
+        timestamp: new Date().toISOString(),
       },
       "Robust Fallback: Failed to parse moderation response. Defaulting all targets to clean.",
     );
@@ -542,7 +547,7 @@ Return ONLY valid JSON, no other text.`;
       status: "clean",
       flags: [],
       score: 0.1,
-      analysis: `Parsing failed: ${parseError instanceof Error ? parseError.message : String(parseError)}. Defaulted to clean.`,
+      analysis: `Parsing failed: ${errorMsg}. Defaulted to clean.`,
     }));
   }
 

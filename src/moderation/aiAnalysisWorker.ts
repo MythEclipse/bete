@@ -95,7 +95,20 @@ async function processAnalysisRequest({
     return { ok: true, conversationKey, rows };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
     const rows: MessageRecord[] = [];
+
+    console.error(
+      JSON.stringify({
+        level: "ERROR",
+        context: "aiAnalysisWorker",
+        conversationKey,
+        messageCount: messages.length,
+        error: errorMessage,
+        stack: errorStack,
+        timestamp: new Date().toISOString(),
+      }),
+    );
 
     return { ok: false, conversationKey, rows, error: errorMessage };
   }
