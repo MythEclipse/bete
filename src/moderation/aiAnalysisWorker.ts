@@ -97,19 +97,6 @@ async function processAnalysisRequest({
     const errorMessage = error instanceof Error ? error.message : String(error);
     const rows: MessageRecord[] = [];
 
-    for (const msg of messages) {
-      const row = await updateMessageAIAnalysis(msg.id, {
-        status: "error",
-        flags: null,
-        score: null,
-        raw: null,
-        analysis: null,
-        analyzedAt: Date.now(),
-        error: errorMessage,
-      });
-      if (row) rows.push(row);
-    }
-
     return { ok: false, conversationKey, rows, error: errorMessage };
   }
 }

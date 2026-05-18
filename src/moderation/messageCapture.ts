@@ -2,6 +2,7 @@ import type { Client, Message } from "discord.js-selfbot-v13";
 import { config } from "../config";
 import { createChildLogger } from "../logger";
 import { queueMessageAnalysis } from "./aiAnalyzer";
+import { processAttachmentUpload } from "./attachmentUploader";
 import {
   getDisplayContent,
   getMessageLocation,
@@ -87,15 +88,13 @@ export async function captureMessage(
   }
 
   const isBacklog = options.source === "backlog";
-  if (!isBacklog) {
-    queueMessageAnalysis(message.id);
-  }
 
   const broadcaster = getModerationBroadcaster();
   if (broadcaster && !isBacklog) {
     broadcaster.messageCreated(messageRecord);
   }
 
+  // Insert attachments before queuing analysis to avoid race condition
   if (message.attachments.size > 0) {
     for (const [, attachment] of message.attachments) {
       const attachmentRecord: AttachmentRecord = {
@@ -109,19 +108,38 @@ export async function captureMessage(
         size: attachment.size,
         type: attachment.contentType || "application/octet-stream",
         discord_url: attachment.url,
-        uploaded_url: attachment.url,
-        upload_status: "uploaded",
+        uploaded_url: null,
+        upload_status: "pending",
         upload_error: null,
         created_at: Date.now(),
-        uploaded_at: Date.now(),
+        uploaded_at: null,
       };
 
       await insertAttachment(attachmentRecord);
+
+      // Initiate async upload to Picser (non-blocking, fire-and-forget)
+      if (!isBacklog) {
+        processAttachmentUpload(
+          attachment.id,
+          attachment.url,
+          attachment.name || "unknown",
+        ).catch((err) => {
+          logger.error(
+            { attachmentId: attachment.id, error: err },
+            "Failed to initiate attachment upload",
+          );
+        });
+      }
 
       if (broadcaster) {
         broadcaster.attachmentCreated(attachmentRecord);
       }
     }
+  }
+
+  // Queue analysis after attachments are inserted
+  if (!isBacklog) {
+    queueMessageAnalysis(message.id);
   }
 }
 

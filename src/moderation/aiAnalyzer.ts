@@ -32,7 +32,6 @@ const conversationErrorCooldown = new Map<string, number>();
 
 let activeRequests = 0;
 let lastError: string | null = null;
-const MAX_ACTIVE_REQUESTS = 2;
 const DEBOUNCE_MS = 1500;
 const RECOVERY_INTERVAL_MS = 15000;
 const ERROR_COOLDOWN_MS = 30000;
@@ -104,7 +103,7 @@ async function processBatch(
       );
       logger.error(
         { conversationKey, error: lastError },
-        "Batch analysis failed",
+        "Batch analysis failed, will retry after cooldown",
       );
       return;
     }
@@ -118,21 +117,8 @@ async function processBatch(
     );
     logger.error(
       { conversationKey, error: lastError },
-      "Analysis worker failed",
+      "Analysis worker failed, will retry after cooldown",
     );
-
-    for (const msg of messages) {
-      const row = await updateMessageAIAnalysis(msg.id, {
-        status: "error",
-        flags: null,
-        score: null,
-        raw: null,
-        analysis: null,
-        analyzedAt: Date.now(),
-        error: lastError,
-      });
-      if (row) getModerationBroadcaster()?.messageAnalyzed(row);
-    }
   } finally {
     activeRequests--;
     conversationProcessing.delete(conversationKey);
@@ -186,21 +172,12 @@ function scheduleConversationAnalysis(conversationKey: string): void {
     clearTimeout(existingTimer);
   }
 
-  // If we have available slots, process immediately with shorter debounce
-  const debounceTime =
-    activeRequests < MAX_ACTIVE_REQUESTS
-      ? Math.min(DEBOUNCE_MS, 500)
-      : DEBOUNCE_MS;
+  // Always use shorter debounce for immediate processing (no concurrency limit)
+  const debounceTime = Math.min(DEBOUNCE_MS, 500);
 
   // Set new debounced timer
   const timer = setTimeout(async () => {
     conversationDebounceTimers.delete(conversationKey);
-
-    // If activeRequests >= MAX_ACTIVE_REQUESTS, requeue instead of waiting
-    if (activeRequests >= MAX_ACTIVE_REQUESTS) {
-      scheduleConversationAnalysis(conversationKey);
-      return;
-    }
 
     // Get pending messages for this conversation
     const messages = await getPendingMessagesByConversation(
@@ -277,11 +254,6 @@ export function startPendingAIAnalysisWorker(): void {
       const conversationKeys = await getPendingConversationKeys(100);
 
       for (const key of conversationKeys) {
-        // Stop if we've reached max active requests
-        if (activeRequests >= MAX_ACTIVE_REQUESTS) {
-          break;
-        }
-
         // Skip if already scheduled
         if (conversationDebounceTimers.has(key)) {
           continue;

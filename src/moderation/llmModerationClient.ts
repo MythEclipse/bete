@@ -81,6 +81,30 @@ export function parseModerationResponse(
   // If parsed is a direct array, wrap it in a results object to handle LLM variations
   if (Array.isArray(parsed)) {
     parsed = { results: parsed };
+  } else if (parsed && typeof parsed === "object" && !("results" in parsed)) {
+    // Handle single result object (has message_id or status)
+    if ("message_id" in parsed || "status" in parsed) {
+      const msgId = (parsed as any).message_id || (parsed as any).id;
+      parsed = {
+        results: [
+          {
+            message_id: msgId,
+            status: (parsed as any).status || "clean",
+            flags: (parsed as any).flags || [],
+            score: (parsed as any).score !== undefined ? (parsed as any).score : 0.1,
+            analysis: (parsed as any).analysis || "",
+          },
+        ],
+      };
+    } else {
+      // Look for any array property (result, data, messages, moderation, etc.)
+      const arrayKey = Object.keys(parsed).find(
+        (key) => Array.isArray((parsed as any)[key]),
+      );
+      if (arrayKey) {
+        parsed.results = (parsed as any)[arrayKey];
+      }
+    }
   }
 
   // Validate structure
