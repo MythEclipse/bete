@@ -54,4 +54,13 @@ describe("logger serialization", () => {
       formatLogMetadataForTest({ context: "bot", signal: "SIGINT", count: 2 }),
     ).toEqual({ context: "bot", signal: "SIGINT", count: 2 });
   });
+
+  it("serializes dates and regexps without dropping values", () => {
+    const createdAt = new Date("2026-05-19T00:00:00.000Z");
+
+    expect(formatLogMetadataForTest({ createdAt, pattern: /voice/i })).toEqual({
+      createdAt: "2026-05-19T00:00:00.000Z",
+      pattern: "/voice/i",
+    });
+  });
 });

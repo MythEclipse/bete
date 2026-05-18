@@ -51,16 +51,33 @@ const serializeError = (error: Error): SerializedError => {
   return serialized;
 };
 
+const isPlainObject = (value: unknown): value is Record<string, unknown> => {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+};
+
 const serializeLogValue = (value: unknown): unknown => {
   if (value instanceof Error) {
     return serializeError(value);
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  if (value instanceof RegExp) {
+    return value.toString();
   }
 
   if (Array.isArray(value)) {
     return value.map(serializeLogValue);
   }
 
-  if (value && typeof value === "object") {
+  if (isPlainObject(value)) {
     return Object.fromEntries(
       Object.entries(value).map(([key, nestedValue]) => [
         key,
@@ -79,13 +96,15 @@ const formatLogMetadata = (metadata: LogMetadata): LogMetadata => {
 };
 
 const metadataFormat = winston.format((info) => {
-  const { level, message, timestamp, ...metadata } = info;
-  return {
-    level,
-    message,
-    timestamp,
-    ...formatLogMetadata(metadata),
-  };
+  const { level: _level, message: _message, timestamp: _timestamp, ...metadata } =
+    info;
+
+  for (const key of Object.keys(metadata)) {
+    delete info[key];
+  }
+
+  Object.assign(info, formatLogMetadata(metadata));
+  return info;
 });
 
 const consoleFormat = winston.format.printf((info) => {
@@ -142,15 +161,15 @@ const winstonLogger = winston.createLogger({
 function wrapLogger(wLogger: winston.Logger): CustomLogger {
   const logAtLevel = (level: string) => {
     return (arg1: any, arg2?: any) => {
-      if (typeof arg1 === "object" && arg1 !== null) {
-        // arg1 is object, arg2 is message string
-        const msg = typeof arg2 === "string" ? arg2 : "";
-        wLogger.log(level, msg, { ...arg1 });
+      if (arg1 instanceof Error) {
+        wLogger.log(level, arg1.message, { error: arg1 });
+      } else if (typeof arg1 === "object" && arg1 !== null) {
+        const message = typeof arg2 === "string" ? arg2 : "";
+        wLogger.log(level, message, { ...arg1 });
       } else {
-        // arg1 is message string, arg2 is metadata (or nothing)
-        const msg = typeof arg1 === "string" ? arg1 : String(arg1);
-        const meta = typeof arg2 === "object" && arg2 !== null ? arg2 : {};
-        wLogger.log(level, msg, meta);
+        const message = typeof arg1 === "string" ? arg1 : String(arg1);
+        const metadata = typeof arg2 === "object" && arg2 !== null ? arg2 : {};
+        wLogger.log(level, message, metadata);
       }
     };
   };
