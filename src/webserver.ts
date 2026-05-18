@@ -25,10 +25,10 @@ import { discordPlayer } from "./player";
 import { createAnalysisRoutes } from "./routes/analysisRoutes";
 import { createMediaRoutes } from "./routes/mediaRoutes";
 import { createMessageRoutes } from "./routes/messageRoutes";
+import { createRecordingsRoutes } from "./routes/recordingsRoutes";
 import { createSyncRoutes } from "./routes/syncRoutes";
 import { createUIStateRoutes } from "./routes/uiStateRoutes";
 import { createVoiceRoutes } from "./routes/voiceRoutes";
-import { createRecordingsRoutes } from "./routes/recordingsRoutes";
 import { Streamer } from "./streaming";
 import type { VoiceController } from "./voiceController";
 

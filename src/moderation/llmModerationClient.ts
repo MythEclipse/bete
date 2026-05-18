@@ -91,15 +91,16 @@ export function parseModerationResponse(
             message_id: msgId,
             status: (parsed as any).status || "clean",
             flags: (parsed as any).flags || [],
-            score: (parsed as any).score !== undefined ? (parsed as any).score : 0.1,
+            score:
+              (parsed as any).score !== undefined ? (parsed as any).score : 0.1,
             analysis: (parsed as any).analysis || "",
           },
         ],
       };
     } else {
       // Look for any array property (result, data, messages, moderation, etc.)
-      const arrayKey = Object.keys(parsed).find(
-        (key) => Array.isArray((parsed as any)[key]),
+      const arrayKey = Object.keys(parsed).find((key) =>
+        Array.isArray((parsed as any)[key]),
       );
       if (arrayKey) {
         parsed.results = (parsed as any)[arrayKey];
@@ -537,7 +538,8 @@ Return ONLY valid JSON, no other text.`;
   try {
     parsed = parseModerationResponse(content, targetIds);
   } catch (parseError) {
-    const errorMsg = parseError instanceof Error ? parseError.message : String(parseError);
+    const errorMsg =
+      parseError instanceof Error ? parseError.message : String(parseError);
     log.error(
       {
         error: errorMsg,

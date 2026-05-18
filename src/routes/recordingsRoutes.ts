@@ -1,8 +1,8 @@
 import {
-  Router,
+  type NextFunction,
   type Request,
   type Response,
-  type NextFunction,
+  Router,
 } from "express";
 import { listVoiceRecordings } from "../database/voiceRecordingRepo";
 import { AppError } from "../errors";

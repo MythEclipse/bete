@@ -415,7 +415,9 @@ describe("runModerationAnalysis", () => {
     expect(requestBody.temperature).toBe(0);
     expect(requestBody.response_format).toEqual({ type: "json_object" });
     expect(requestBody.reasoning_budget).toBeUndefined();
-    expect(requestBody.chat_template_kwargs).toEqual({ enable_thinking: false });
+    expect(requestBody.chat_template_kwargs).toEqual({
+      enable_thinking: false,
+    });
   });
 
   it("throws on non-ok HTTP response", async () => {
@@ -655,7 +657,9 @@ describe("runModerationAnalysis", () => {
     expect(downloadedUrls).toContain("https://httpbin.org/image/png?source=t2");
     expect(downloadedUrls).toContain("https://httpbin.org/image/png?source=t1");
     expect(downloadedUrls).toContain("https://httpbin.org/image/png?source=c7");
-    expect(downloadedUrls).not.toContain("https://httpbin.org/image/png?source=c1");
+    expect(downloadedUrls).not.toContain(
+      "https://httpbin.org/image/png?source=c1",
+    );
   });
 
   it("sends verified real PNG and JPEG attachments with realistic Indonesian text", async () => {
@@ -761,7 +765,9 @@ describe("runModerationAnalysis", () => {
 
     const requestBody = JSON.parse(fetchCalls[2][1].body);
     const contentParts = requestBody.messages[0].content;
-    expect(contentParts.filter((part: any) => part.type === "image_url")).toHaveLength(2);
+    expect(
+      contentParts.filter((part: any) => part.type === "image_url"),
+    ).toHaveLength(2);
     expect(contentParts[0].image_url.url).toContain("data:image/jpeg;base64,");
     expect(contentParts[2].image_url.url).toContain("data:image/png;base64,");
     expect(contentParts.at(-1).text).toContain("https://example.invalid/login");
@@ -795,7 +801,10 @@ describe("runModerationAnalysis", () => {
         return Promise.resolve({
           ok: true,
           arrayBuffer: async () =>
-            buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
+            buffer.buffer.slice(
+              buffer.byteOffset,
+              buffer.byteOffset + buffer.byteLength,
+            ),
         });
       }
 
@@ -807,7 +816,12 @@ describe("runModerationAnalysis", () => {
     });
 
     await runModerationAnalysis({
-      targets: [createMessageRecord({ id: "m1", content: "gambar belum selesai upload ke picser" })],
+      targets: [
+        createMessageRecord({
+          id: "m1",
+          content: "gambar belum selesai upload ke picser",
+        }),
+      ],
       contextText: "test context",
       attachments: [
         {
@@ -830,7 +844,9 @@ describe("runModerationAnalysis", () => {
       ],
     });
 
-    expect((global.fetch as any).mock.calls[0][0]).toBe("https://httpbin.org/image/png");
+    expect((global.fetch as any).mock.calls[0][0]).toBe(
+      "https://httpbin.org/image/png",
+    );
   });
 
   it("keeps analyzing text when an image URL returns non-OK", async () => {
@@ -845,7 +861,8 @@ describe("runModerationAnalysis", () => {
                   status: "warn",
                   flags: ["suspicious_link"],
                   score: 0.6,
-                  analysis: "Image fetch failed, text still indicates suspicious link.",
+                  analysis:
+                    "Image fetch failed, text still indicates suspicious link.",
                 },
               ],
             }),
@@ -873,7 +890,8 @@ describe("runModerationAnalysis", () => {
           content: "cek bonus gratis di https://example.invalid/claim sekarang",
         }),
       ],
-      contextText: "Pesan ini dikirim berulang setelah user lain menolak klik link.",
+      contextText:
+        "Pesan ini dikirim berulang setelah user lain menolak klik link.",
       attachments: [
         {
           id: "bad-image",
@@ -899,7 +917,9 @@ describe("runModerationAnalysis", () => {
 
     const requestBody = JSON.parse((global.fetch as any).mock.calls[1][1].body);
     expect(requestBody.messages[0].content).toHaveLength(1);
-    expect(requestBody.messages[0].content[0].text).toContain("https://example.invalid/claim");
+    expect(requestBody.messages[0].content[0].text).toContain(
+      "https://example.invalid/claim",
+    );
   });
 
   describe("Edge Cases & Real-World Scenarios", () => {
@@ -1349,9 +1369,7 @@ describe("runModerationAnalysis", () => {
         ]
       }`;
 
-      expect(() =>
-        parseModerationResponse(content, ["m1"]),
-      ).toThrow(/finite/i);
+      expect(() => parseModerationResponse(content, ["m1"])).toThrow(/finite/i);
     });
   });
 });
