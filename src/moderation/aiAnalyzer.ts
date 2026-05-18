@@ -5,7 +5,6 @@ import {
   getMessageById,
   getPendingConversationKeys,
   getPendingMessagesByConversation,
-  updateMessageAIAnalysis,
 } from "./messageStore";
 import type {
   AnalysisQueueStatus,
