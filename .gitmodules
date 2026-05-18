@@ -2,3 +2,6 @@
 	path = vendor/discord.js-selfbot-v13
 	url = https://github.com/MythEclipse/discord.js-selfbot-v13.git
 
+[submodule "vendor/discord-video-stream"]
+	path = vendor/discord-video-stream
+	url = https://github.com/dank074/discord-video-stream.git
