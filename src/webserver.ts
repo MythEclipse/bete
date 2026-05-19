@@ -12,6 +12,7 @@ import express, {
 import helmet from "helmet";
 import * as prism from "prism-media";
 import { WebSocketServer } from "ws";
+import { rmsDb, upsample24kMonoTo48kStereo } from "./audio/pcm";
 import { config } from "./config";
 import { AppError } from "./errors";
 import { createChildLogger, logger } from "./logger";
@@ -165,32 +166,6 @@ function patchSharedUIState(patch: SharedUIStatePatch) {
   return getSharedUIState();
 }
 
-// Upsample 24kHz mono s16le → 48kHz stereo s16le (pure JS)
-function upsample(mono24k: Buffer): Buffer {
-  const numSamples = mono24k.length / 2;
-  const out = Buffer.alloc(numSamples * 8);
-  for (let i = 0; i < numSamples; i++) {
-    const s = mono24k.readInt16LE(i * 2);
-    const base = i * 8;
-    out.writeInt16LE(s, base);
-    out.writeInt16LE(s, base + 2);
-    out.writeInt16LE(s, base + 4);
-    out.writeInt16LE(s, base + 6);
-  }
-  return out;
-}
-
-// Calculate RMS dB level of a PCM s16le buffer
-function rmsDb(pcm: Buffer): number {
-  let sum = 0;
-  const samples = pcm.length / 2;
-  for (let i = 0; i < samples; i++) {
-    const s = pcm.readInt16LE(i * 2) / 32768;
-    sum += s * s;
-  }
-  const rms = Math.sqrt(sum / samples);
-  return 20 * Math.log10(rms);
-}
 
 export async function startWebserver(
   port: number = 3000,
@@ -517,7 +492,7 @@ export async function startWebserver(
       lastBrowserAudioTime = Date.now();
 
       // Upsample 24kHz mono → 48kHz stereo and add to buffer
-      const upsampled = upsample(data);
+      const upsampled = upsample24kMonoTo48kStereo(data);
 
       // Cap buffer to avoid runaway growth during stall
       if (pcmBuffer.length < MAX_BUF_BYTES) {
