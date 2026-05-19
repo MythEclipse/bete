@@ -20,7 +20,6 @@ import { MediaController } from "./media/mediaController";
 import { createScreenShareController } from "./media/screenShareController";
 import { getMetrics, uptimeGauge } from "./metrics";
 import { createBroadcaster } from "./moderation/broadcaster";
-import type { ModerationBroadcaster } from "./moderation/types";
 import { createSharedUIStateStore } from "./state/uiState";
 import { Streamer } from "./streaming";
 import type { VoiceController } from "./voiceController";
@@ -36,6 +35,12 @@ import { createRecordingsRoutes } from "./routes/recordingsRoutes";
 import { createSyncRoutes } from "./routes/syncRoutes";
 import { createUIStateRoutes } from "./routes/uiStateRoutes";
 import { createVoiceRoutes } from "./routes/voiceRoutes";
+import {
+  exposeActiveUserGlobal,
+  exposeModerationGlobals,
+  exposePcmBroadcastGlobal,
+  exposeVideoBroadcastGlobal,
+} from "./ws/broadcastGlobals";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -46,16 +51,6 @@ const activeUsers = new Map<
   string,
   { username: string; avatar: string; speaking: boolean }
 >();
-
-type VoiceGlobals = typeof globalThis & {
-  moderationBroadcaster?: ModerationBroadcaster;
-  broadcastPcmToWeb?: (chunk: Buffer, userId: string) => void;
-  broadcastVideoToWeb?: (chunk: Buffer) => void;
-  updateActiveUser?: (
-    userId: string,
-    data: { username: string; avatar: string; speaking: boolean },
-  ) => void;
-};
 
 export async function startWebserver(
   port: number = 3000,
@@ -74,8 +69,7 @@ export async function startWebserver(
 
   // Create broadcaster instance
   const broadcaster = createBroadcaster();
-  (globalThis as VoiceGlobals).moderationBroadcaster = broadcaster;
-  (globalThis as any).ADMIN_PASSWORD = config.ADMIN_PASSWORD;
+  exposeModerationGlobals(broadcaster, config.ADMIN_PASSWORD);
 
   const streamer = new Streamer(_client);
   const screenController = createScreenShareController({
@@ -202,45 +196,6 @@ export async function startWebserver(
     }),
   );
 
-  // Inbound: Discord PCM → tagged chunks → browser
-  (globalThis as VoiceGlobals).broadcastPcmToWeb = (
-    chunk: Buffer,
-    userId: string,
-  ) => {
-    let hash = 0;
-    for (let i = 0; i < userId.length; i++) {
-      hash = (hash << 5) - hash + userId.charCodeAt(i);
-      hash |= 0;
-    }
-    const header = Buffer.alloc(4);
-    header.writeInt32LE(hash, 0);
-    const packet = Buffer.concat([header, chunk]);
-    for (const client of broadcaster.getClients()) {
-      if (client.readyState === 1) client.send(packet);
-    }
-  };
-
-  // Outbound: server video stream (matroska chunks) -> browser clients
-  (globalThis as VoiceGlobals).broadcastVideoToWeb = (chunk: Buffer) => {
-    for (const client of broadcaster.getClients()) {
-      if (client.readyState === 1) {
-        try {
-          client.send(chunk);
-        } catch (err) {
-          wsLogger.warn({ err }, "Failed to send video chunk");
-        }
-      }
-    }
-  };
-
-  (globalThis as VoiceGlobals).updateActiveUser = (
-    userId: string,
-    data: { username: string; avatar: string; speaking: boolean },
-  ) => {
-    activeUsers.set(userId, data);
-    broadcastUserState();
-  };
-
   function broadcastUserState() {
     const users = Array.from(activeUsers.entries()).map(([id, data]) => ({
       id,
@@ -248,6 +203,10 @@ export async function startWebserver(
     }));
     broadcaster.userState(users);
   }
+
+  exposePcmBroadcastGlobal(broadcaster);
+  exposeVideoBroadcastGlobal(() => broadcaster.getClients(), wsLogger);
+  exposeActiveUserGlobal(activeUsers, broadcastUserState);
 
   // --- Outbound: browser PCM (24kHz mono) → Opus → Discord ---
   const RATE = 48000;
