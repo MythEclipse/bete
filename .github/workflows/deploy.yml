@@ -6,6 +6,9 @@ on:
       - master
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -22,7 +25,7 @@ jobs:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
           ENV_FILE: ${{ secrets.ENV_FILE }}
           REPO_URL: ${{ github.server_url }}/${{ github.repository }}.git
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           # 1. Setup SSH Key
           mkdir -p ~/.ssh
