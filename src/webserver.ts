@@ -21,7 +21,13 @@ import { createScreenShareController } from "./media/screenShareController";
 import { getMetrics, uptimeGauge } from "./metrics";
 import { createBroadcaster } from "./moderation/broadcaster";
 import type { ModerationBroadcaster } from "./moderation/types";
-import { getPersistedValue, setPersistedValue } from "./muxer-queue";
+import { createSharedUIStateStore } from "./state/uiState";
+import { Streamer } from "./streaming";
+import type { VoiceController } from "./voiceController";
+import {
+  initializeMediaSettings,
+  persistMediaSettings,
+} from "./state/mediaSettings";
 import { discordPlayer } from "./player";
 import { createAnalysisRoutes } from "./routes/analysisRoutes";
 import { createMediaRoutes } from "./routes/mediaRoutes";
@@ -30,9 +36,6 @@ import { createRecordingsRoutes } from "./routes/recordingsRoutes";
 import { createSyncRoutes } from "./routes/syncRoutes";
 import { createUIStateRoutes } from "./routes/uiStateRoutes";
 import { createVoiceRoutes } from "./routes/voiceRoutes";
-import { createSharedUIStateStore } from "./state/uiState";
-import { Streamer } from "./streaming";
-import type { VoiceController } from "./voiceController";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -53,26 +56,6 @@ type VoiceGlobals = typeof globalThis & {
     data: { username: string; avatar: string; speaking: boolean },
   ) => void;
 };
-
-interface MediaSettings {
-  musicVolume: number;
-}
-
-const defaultMediaSettings: MediaSettings = {
-  musicVolume: 1,
-};
-
-async function initializeMediaSettings(): Promise<MediaSettings> {
-  const stored = await getPersistedValue(
-    "media-settings",
-    defaultMediaSettings,
-  );
-  return {
-    ...defaultMediaSettings,
-    ...(stored as MediaSettings),
-  };
-}
-
 
 export async function startWebserver(
   port: number = 3000,
@@ -119,7 +102,7 @@ export async function startWebserver(
     initialMusicVolume: mediaSettings.musicVolume,
     onMusicVolumeChange: async (volume) => {
       mediaSettings = { ...mediaSettings, musicVolume: volume };
-      await setPersistedValue("media-settings", mediaSettings);
+      await persistMediaSettings(mediaSettings);
     },
   });
 
