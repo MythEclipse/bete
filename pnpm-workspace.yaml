@@ -3,6 +3,23 @@ packages:
   - vendor/discord-video-stream
   - vendor/discord.js-selfbot-v13
 
+allowBuilds:
+  '@lng2004/node-datachannel': true
+  better-sqlite3: true
+  esbuild: true
+  node-av: true
+  sharp: true
+  zeromq: true
+
+minimumReleaseAgeExclude:
+  - '@types/node@25.9.0'
+  - pg-cloudflare@1.4.0
+  - pg-connection-string@2.13.0
+  - pg-pool@3.14.0
+  - pg-protocol@1.14.0
+  - pg@8.21.0
+  - tsx@4.22.2
+
 onlyBuiltDependencies:
   - '@discordjs/opus'
   - '@lng2004/node-datachannel'
