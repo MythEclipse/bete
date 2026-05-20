@@ -12,8 +12,6 @@ const openai = new OpenAI({
   timeout: 2_147_483_647,
   fetch: async (url, init) => {
     const response = await globalThis.fetch(url, init);
-    if (response.headers) return response;
-
     const body =
       typeof response.text === "function"
         ? await response.text()
@@ -23,14 +21,23 @@ const openai = new OpenAI({
     if (response.ok !== false) {
       try {
         JSON.parse(body);
-      } catch {
+      } catch (error) {
+        log.warn(
+          {
+            error: error instanceof Error ? error.message : String(error),
+            status: response.status ?? 200,
+            bodyLength: body.length,
+            body,
+          },
+          "LLM provider returned malformed JSON response body",
+        );
         normalizedBody = JSON.stringify(extractJson(body));
       }
     }
 
     return new Response(normalizedBody, {
       status: response.status ?? 200,
-      headers: { "Content-Type": "application/json" },
+      headers: response.headers ?? { "Content-Type": "application/json" },
     });
   },
 });

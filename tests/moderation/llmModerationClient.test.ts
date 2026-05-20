@@ -540,6 +540,8 @@ describe("runModerationAnalysis", () => {
 
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
+      status: 200,
+      headers: new Headers({ "Content-Type": "application/json" }),
       text: async () => `${JSON.stringify(mockResponse)}\nextra`,
     });
 
