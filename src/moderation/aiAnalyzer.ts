@@ -91,6 +91,7 @@ async function processBatch(
   if (messages.length === 0) return;
 
   activeRequests++;
+  let shouldScheduleNext = false;
   const processingStartedAt = Date.now();
   conversationProcessing.set(conversationKey, processingStartedAt);
   try {
@@ -123,6 +124,7 @@ async function processBatch(
     }
 
     conversationErrorCooldown.delete(conversationKey);
+    shouldScheduleNext = true;
   } catch (error) {
     lastError = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : undefined;
@@ -148,6 +150,9 @@ async function processBatch(
     activeRequests--;
     if (conversationProcessing.get(conversationKey) === processingStartedAt) {
       conversationProcessing.delete(conversationKey);
+    }
+    if (shouldScheduleNext) {
+      setImmediate(() => scheduleConversationAnalysis(conversationKey));
     }
   }
 }

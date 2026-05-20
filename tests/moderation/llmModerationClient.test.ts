@@ -459,11 +459,11 @@ describe("runModerationAnalysis", () => {
     });
 
     const requestBody = JSON.parse((global.fetch as any).mock.calls[0][1].body);
-    expect(requestBody.messages[0].role).toBe("system");
-    expect(requestBody.messages[1].role).toBe("user");
-    expect(typeof requestBody.messages[1].content).toBe("string");
-    expect(requestBody.messages[1].content).toContain("test context");
-    expect(requestBody.messages[1].content).not.toContain("data:image/png");
+    expect(requestBody.messages).toHaveLength(1);
+    expect(requestBody.messages[0].role).toBe("user");
+    expect(typeof requestBody.messages[0].content).toBe("string");
+    expect(requestBody.messages[0].content).toContain("test context");
+    expect(requestBody.messages[0].content).not.toContain("data:image/png");
   });
 
   it("throws on non-ok HTTP response", async () => {
@@ -626,8 +626,8 @@ describe("runModerationAnalysis", () => {
     const [, completionsOptions] = fetchCalls[1];
     const body = JSON.parse(completionsOptions.body);
 
-    expect(body.messages[0].role).toBe("system");
-    const userMessage = body.messages[1];
+    expect(body.messages).toHaveLength(1);
+    const userMessage = body.messages[0];
     expect(userMessage.role).toBe("user");
     expect(Array.isArray(userMessage.content)).toBe(true);
     expect(userMessage.content[0].type).toBe("image_url");
@@ -640,7 +640,7 @@ describe("runModerationAnalysis", () => {
     );
     expect(userMessage.content[2].type).toBe("text");
     expect(userMessage.content[2].text).toContain("test context");
-    expect(body.messages[0].content).toContain(
+    expect(userMessage.content[2].text).toContain(
       "You are a content moderation assistant.",
     );
   });
@@ -848,7 +848,7 @@ describe("runModerationAnalysis", () => {
     expect(fetchCalls[1][0]).toBe("https://httpbin.org/image/png");
 
     const requestBody = JSON.parse(fetchCalls[2][1].body);
-    const contentParts = requestBody.messages[1].content;
+    const contentParts = requestBody.messages[0].content;
     expect(
       contentParts.filter((part: any) => part.type === "image_url"),
     ).toHaveLength(2);
@@ -932,7 +932,7 @@ describe("runModerationAnalysis", () => {
     expect((global.fetch as any).mock.calls[0][0]).toContain(
       "/chat/completions",
     );
-    expect(typeof requestBody.messages[1].content).toBe("string");
+    expect(typeof requestBody.messages[0].content).toBe("string");
   });
 
   it("keeps analyzing text when an image URL returns non-OK", async () => {
@@ -1002,8 +1002,8 @@ describe("runModerationAnalysis", () => {
     expect(result.results[0].status).toBe("warn");
 
     const requestBody = JSON.parse((global.fetch as any).mock.calls[1][1].body);
-    expect(requestBody.messages[1].content).toHaveLength(1);
-    expect(requestBody.messages[1].content[0].text).toContain(
+    expect(requestBody.messages[0].content).toHaveLength(1);
+    expect(requestBody.messages[0].content[0].text).toContain(
       "https://example.invalid/claim",
     );
   });

@@ -390,7 +390,13 @@ export async function runModerationAnalysis(
     .map((msg) => `[${msg.id}] ${msg.username}: ${msg.content}`)
     .join("\n");
 
-  const systemPrompt = `You are a content moderation assistant. Analyze messages for policy violations.
+  const moderationPrompt = `You are a content moderation assistant. Analyze messages for policy violations.
+
+Context:
+${contextText}
+
+Messages to analyze:
+${messagesText}
 
 For each message, respond with a JSON object containing a "results" array.
 CRITICAL: You MUST return the "message_id" EXACTLY as provided in the input, and it MUST be wrapped in double quotes as a STRING. Do not treat IDs as numbers.
@@ -404,11 +410,6 @@ Each result must have:
 
 Do not include reasoning, analysis steps, markdown, prose, XML tags, or comments.
 Return ONLY valid JSON, no other text.`;
-
-  const userPrompt = `Context: ${contextText}
-
-Messages to analyze:
-${messagesText}`;
 
   // Check for image attachments to support multimodal analysis
   const targetIdSet = new Set(targets.map((t) => t.id));
@@ -485,11 +486,11 @@ ${messagesText}`;
       ...imageParts.flat(),
       {
         type: "text",
-        text: userPrompt,
+        text: moderationPrompt,
       },
     ];
   } else {
-    messageContent = userPrompt;
+    messageContent = moderationPrompt;
   }
 
   const result = await retryWithBackoff(
@@ -497,10 +498,6 @@ ${messagesText}`;
       openai.chat.completions.create({
         model: config.AI_LLM_MODEL,
         messages: [
-          {
-            role: "system",
-            content: systemPrompt,
-          },
           {
             role: "user",
             content: messageContent,
@@ -577,7 +574,7 @@ ${messagesText}`;
           model: config.AI_LLM_MODEL,
           timestamp: new Date().toISOString(),
         },
-        "Robust Fallback: Failed to parse moderation response. Defaulting all targets to clean.",
+        "Robust Fallback: Failed to parse moderation response. Marking all targets as analysis errors.",
       );
       parsed = targetIds.map((id) => ({
         messageId: id,

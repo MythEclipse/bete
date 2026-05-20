@@ -172,6 +172,7 @@ export async function captureMessage(
   // Queue analysis after attachment uploads settle so AI uses stable tele URLs.
   if (!isBacklog) {
     if (attachmentUploadTasks.length > 0) {
+      setTimeout(() => queueMessageAnalysis(message.id), 30000);
       Promise.allSettled(attachmentUploadTasks)
         .then(() => queueMessageAnalysis(message.id))
         .catch((err) => {
