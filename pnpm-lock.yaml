@@ -179,8 +179,8 @@ importers:
         specifier: ^25.0.1
         version: 25.8.0
       discord.js-selfbot-v13:
-        specifier: workspace:*
-        version: link:../discord.js-selfbot-v13
+        specifier: ^3.7.1
+        version: 3.7.1
       pkg-pr-new:
         specifier: ^0.0.62
         version: 0.0.62
@@ -2369,6 +2369,11 @@ packages:
 
   discord-api-types@0.38.47:
     resolution: {integrity: sha512-XgXQodHQBAE6kfD7kMvVo30863iHX1LHSqNq6MGUTDwIFCCvHva13+rwxyxVXDqudyApMNAd32PGjgVETi5rjA==}
+
+  discord.js-selfbot-v13@3.7.1:
+    resolution: {integrity: sha512-cq5AW/CVvNIUVTSBdZmhsob7v+wjxnkFjuNULcxBXvxutVBnSZqZupsT/9CDtdnT71iKUn9N8GGL6GPg9aZlGA==}
+    engines: {node: '>=20.18'}
+    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
 
   dmd@4.0.6:
     resolution: {integrity: sha512-7ZYAnFQ6jGm4SICArwqNPylJ83PaOdPTAkds3Z/s1ueFqSc5ilJ2F0b7uP+35W1PUbemH++gn5/VlC3KwEgiHQ==}
@@ -6375,6 +6380,31 @@ snapshots:
       path-type: 4.0.0
 
   discord-api-types@0.38.47: {}
+
+  discord.js-selfbot-v13@3.7.1:
+    dependencies:
+      '@discordjs/builders': 1.14.1
+      '@discordjs/collection': 2.1.1
+      '@sapphire/async-queue': 1.5.5
+      '@sapphire/shapeshift': 4.0.0
+      discord-api-types: 0.38.47
+      fetch-cookie: 3.2.0
+      find-process: 2.1.1
+      otplib: 12.0.1
+      prism-media: 1.3.5
+      qrcode: 1.5.4
+      tough-cookie: 5.1.2
+      tree-kill: 1.2.2
+      undici: 7.25.0
+      werift-rtp: 0.8.8
+      ws: 8.20.1
+    transitivePeerDependencies:
+      - '@discordjs/opus'
+      - bufferutil
+      - ffmpeg-static
+      - node-opus
+      - opusscript
+      - utf-8-validate
 
   dmd@4.0.6:
     dependencies:

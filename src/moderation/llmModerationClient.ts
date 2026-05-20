@@ -19,7 +19,16 @@ const openai = new OpenAI({
         ? await response.text()
         : JSON.stringify(await response.json());
 
-    return new Response(body, {
+    let normalizedBody = body;
+    if (response.ok !== false) {
+      try {
+        JSON.parse(body);
+      } catch {
+        normalizedBody = JSON.stringify(extractJson(body));
+      }
+    }
+
+    return new Response(normalizedBody, {
       status: response.status ?? 200,
       headers: { "Content-Type": "application/json" },
     });

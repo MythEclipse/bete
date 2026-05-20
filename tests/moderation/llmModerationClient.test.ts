@@ -481,7 +481,7 @@ describe("runModerationAnalysis", () => {
     ).rejects.toThrow(/500/);
   });
 
-  it("parses first JSON object when provider appends extra JSON", async () => {
+  it("parses first JSON object when provider appends extra text to message content", async () => {
     const moderationJson = JSON.stringify({
       results: [
         {
@@ -506,6 +506,41 @@ describe("runModerationAnalysis", () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       text: async () => JSON.stringify(mockResponse),
+    });
+
+    const result = await runModerationAnalysis({
+      targets: [createMessageRecord()],
+      contextText: "test context",
+    });
+
+    expect(result.results).toHaveLength(1);
+    expect(result.results[0].messageId).toBe("m1");
+  });
+
+  it("normalizes first JSON object when provider appends extra text to HTTP body", async () => {
+    const mockResponse = {
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              results: [
+                {
+                  message_id: "m1",
+                  status: "clean",
+                  flags: [],
+                  score: 0.1,
+                  analysis: "OK",
+                },
+              ],
+            }),
+          },
+        },
+      ],
+    };
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => `${JSON.stringify(mockResponse)}\nextra`,
     });
 
     const result = await runModerationAnalysis({
