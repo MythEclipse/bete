@@ -3,7 +3,10 @@ import { ConfigError } from "./errors.ts";
 
 const configSchema = z
   .object({
-    DISCORD_TOKEN: z.string().min(1, "DISCORD_TOKEN is required"),
+    DISCORD_TOKEN: z
+      .string()
+      .min(1, "DISCORD_TOKEN is required")
+      .transform((value) => value.replace(/^(\\"|')|(?:\\"|')$/g, "")),
     VOICE_CHANNEL_ID: z.string().min(1).optional(),
     GUILD_ID: z.string().min(1).optional(),
     TEXT_GUILD_ID: z.string().min(1).optional(),
