@@ -12,7 +12,7 @@ import {
 import { getDatabase } from "../database/drizzle.ts";
 import { attachmentsTable, messagesTable } from "../database/schema.ts";
 import { createChildLogger } from "../logger.ts";
-import { decodeCursor, encodeCursor } from "./pagination";
+import { decodeCursor, encodeCursor } from "./pagination.ts";
 import type {
   AttachmentRecord,
   MessageQuery,
@@ -105,7 +105,7 @@ function pageMessages(
   return { data, nextCursor };
 }
 
-export { decodeCursor, encodeCursor } from "./pagination";
+export { decodeCursor, encodeCursor } from "./pagination.ts";
 
 export async function insertMessage(message: MessageRecord): Promise<void> {
   try {
