@@ -3,7 +3,7 @@ import type {
   MediaQueueItem,
   MediaState,
   ResolvedMediaSource,
-} from "./mediaTypes";
+} from "./mediaTypes.js";
 
 export class MediaQueue {
   private current: MediaQueueItem | null = null;

@@ -1,11 +1,11 @@
 import { desc, eq } from "drizzle-orm";
-import { createChildLogger } from "../logger";
-import { getDatabase } from "./drizzle";
+import { createChildLogger } from "../logger.js";
+import { getDatabase } from "./drizzle.js";
 import {
   type VoiceRecording,
   type VoiceRecordingInsert,
   voiceRecordingsTable,
-} from "./schema";
+} from "./schema.js";
 
 const logger = createChildLogger("voice-recording-repo");
 

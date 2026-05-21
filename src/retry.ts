@@ -1,5 +1,5 @@
 import pRetry from "p-retry";
-import type { CustomLogger } from "./logger.ts";
+import type { CustomLogger } from "./logger.js";
 
 export interface RetryOptions {
   retries?: number;

@@ -1,10 +1,10 @@
 import type { NextFunction, Request, Response, Router } from "express";
 import express from "express";
-import { AppError } from "../errors";
-import { createChildLogger } from "../logger";
-import type { ModerationBroadcaster } from "../moderation/broadcaster";
-import type { VoiceController } from "../voiceController";
-import type { SharedUIState } from "./uiStateRoutes";
+import { AppError } from "../errors.js";
+import { createChildLogger } from "../logger.js";
+import type { ModerationBroadcaster } from "../moderation/broadcaster.js";
+import type { VoiceController } from "../voiceController.js";
+import type { SharedUIState } from "./uiStateRoutes.js";
 
 const logger = createChildLogger("voice-routes");
 

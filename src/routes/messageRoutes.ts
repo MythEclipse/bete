@@ -1,14 +1,14 @@
 import type { Router } from "express";
 import express from "express";
-import { AppError } from "../errors";
+import { AppError } from "../errors.js";
 import {
   getAttachmentsByChannel,
   getMessageById,
   getMessagesByChannel,
   listMessages,
   listReviewMessages,
-} from "../moderation/messageStore";
-import type { AIStatus, MessageQuery } from "../moderation/types";
+} from "../moderation/messageStore.js";
+import type { AIStatus, MessageQuery } from "../moderation/types.js";
 
 const aiStatuses = new Set<AIStatus>([
   "pending",

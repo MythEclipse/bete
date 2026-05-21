@@ -1,9 +1,9 @@
 import { getVoiceConnection, type VoiceConnection } from "@discordjs/voice";
 import type { Client, Guild, VoiceChannel } from "discord.js-selfbot-v13";
-import { AppError } from "./errors";
-import { createChildLogger } from "./logger";
-import { discordPlayer } from "./player";
-import { startRecording, stopRecording } from "./recorder";
+import { AppError } from "./errors.js";
+import { createChildLogger } from "./logger.js";
+import { discordPlayer } from "./player.js";
+import { startRecording, stopRecording } from "./recorder.js";
 
 const logger = createChildLogger("voice-controller");
 

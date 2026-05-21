@@ -1,16 +1,16 @@
 import type { Router } from "express";
 import express from "express";
-import { AppError } from "../errors";
+import { AppError } from "../errors.js";
 import {
   getAnalysisQueueStatus,
   queueMessageAnalysis,
-} from "../moderation/aiAnalyzer";
+} from "../moderation/aiAnalyzer.js";
 import {
   getMessageById,
   searchMessages,
   updateMessageAIAnalysis,
-} from "../moderation/messageStore";
-import type { MessageRecord } from "../moderation/types";
+} from "../moderation/messageStore.js";
+import type { MessageRecord } from "../moderation/types.js";
 
 export function createAnalysisRoutes(): Router {
   const router = express.Router();

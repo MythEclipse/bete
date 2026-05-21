@@ -2,9 +2,9 @@ import { and, asc, eq, lt, sql } from "drizzle-orm";
 import {
   getDatabase as getDrizzleDatabase,
   initializeDatabase,
-} from "./database/drizzle";
-import { muxerJobsTable, uiStateTable } from "./database/schema";
-import { createChildLogger } from "./logger";
+} from "./database/drizzle.js";
+import { muxerJobsTable, uiStateTable } from "./database/schema.js";
+import { createChildLogger } from "./logger.js";
 
 const logger = createChildLogger("muxer-queue");
 

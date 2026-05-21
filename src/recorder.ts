@@ -10,24 +10,24 @@ import {
   VoiceConnectionStatus,
 } from "@discordjs/voice";
 import type { Client, VoiceChannel } from "discord.js-selfbot-v13";
-import { config } from "./config";
-import { createChildLogger } from "./logger";
-import { PacketFilter } from "./packetFilter";
-import { subscribeToAudioStream } from "./recorder/audioStream";
-import { OpusDecoder } from "./recorder/decoder";
+import { config } from "./config.js";
+import { createChildLogger } from "./logger.js";
+import { PacketFilter } from "./packetFilter.js";
+import { subscribeToAudioStream } from "./recorder/audioStream.js";
+import { OpusDecoder } from "./recorder/decoder.js";
 import {
   collectUserMetadata,
   createSegmentMetadata,
-} from "./recorder/metadata";
-import { SegmentManager } from "./recorder/segment";
+} from "./recorder/metadata.js";
+import { SegmentManager } from "./recorder/segment.js";
 import {
   createRecordingSession,
   finalizeRecordingSession,
   type RecordingSession,
-} from "./recorder/sessionRecording";
-import { uploadRecordingSegment } from "./recorder/uploader";
-import { retryWithBackoff } from "./retry";
-import type { PcmBroadcaster } from "./types";
+} from "./recorder/sessionRecording.js";
+import { uploadRecordingSegment } from "./recorder/uploader.js";
+import { retryWithBackoff } from "./retry.js";
+import type { PcmBroadcaster } from "./types.js";
 
 const logger = createChildLogger("recorder");
 

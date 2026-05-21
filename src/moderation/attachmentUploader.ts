@@ -1,11 +1,11 @@
-import { config } from "../config";
-import { createChildLogger } from "../logger";
-import { uploadToTele } from "../uploader/teleUpload";
+import { config } from "../config.js";
+import { createChildLogger } from "../logger.js";
+import { uploadToTele } from "../uploader/teleUpload.js";
 import {
   updateAttachmentAsFailedUpload,
   updateAttachmentAsUploaded,
   updateAttachmentDiscordUrl,
-} from "./messageStore";
+} from "./messageStore.js";
 
 const logger = createChildLogger("attachment-uploader");
 

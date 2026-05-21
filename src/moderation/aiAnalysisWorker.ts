@@ -1,14 +1,14 @@
 import { parentPort } from "node:worker_threads";
-import { config } from "../config.ts";
-import { initializeDatabase } from "../database/drizzle.ts";
-import { buildConversationPromptMessages } from "./conversationContext.ts";
-import { runModerationAnalysis } from "./llmModerationClient.ts";
+import { config } from "../config.js";
+import { initializeDatabase } from "../database/drizzle.js";
+import { buildConversationPromptMessages } from "./conversationContext.js";
+import { runModerationAnalysis } from "./llmModerationClient.js";
 import {
   getAttachmentsForMessages,
   getConversationContextBefore,
   updateMessageAIAnalysis,
-} from "./messageStore.ts";
-import type { MessageRecord } from "./types";
+} from "./messageStore.js";
+import type { MessageRecord } from "./types.js";
 
 let dbInitialized = false;
 

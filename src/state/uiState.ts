@@ -1,4 +1,4 @@
-import { getPersistedValue, setPersistedValue } from "../muxer-queue";
+import { getPersistedValue, setPersistedValue } from "../muxer-queue.js";
 
 export type ActiveTab =
   | "voice"

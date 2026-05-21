@@ -1,8 +1,8 @@
 import OpenAI from "openai";
-import { config } from "../config.ts";
-import { createChildLogger } from "../logger.ts";
-import { retryWithBackoff } from "../retry.ts";
-import type { AnalysisResult, AttachmentRecord, MessageRecord } from "./types";
+import { config } from "../config.js";
+import { createChildLogger } from "../logger.js";
+import { retryWithBackoff } from "../retry.js";
+import type { AnalysisResult, AttachmentRecord, MessageRecord } from "./types.js";
 
 const log = createChildLogger("llmModerationClient");
 const openai = new OpenAI({
@@ -35,9 +35,13 @@ const openai = new OpenAI({
       }
     }
 
+    const headers = new Headers(response.headers ?? undefined);
+    headers.set("Content-Type", "application/json");
+    headers.delete("Content-Length");
+
     return new Response(normalizedBody, {
       status: response.status ?? 200,
-      headers: response.headers ?? { "Content-Type": "application/json" },
+      headers,
     });
   },
 });
@@ -592,6 +596,17 @@ Return ONLY valid JSON, no other text.`;
               ? parseError.message
               : String(parseError);
           lastInvalidContent = content;
+          log.warn(
+            {
+              error: lastParseError,
+              contentLength: content.length,
+              contentPreview: content.substring(0, 1000),
+              fullContent: content,
+              targetIds,
+              model: config.AI_LLM_MODEL,
+            },
+            "Failed to parse moderation response from LLM",
+          );
           throw parseError;
         }
       },

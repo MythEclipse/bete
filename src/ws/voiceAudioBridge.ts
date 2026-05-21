@@ -1,8 +1,8 @@
 import { AudioPlayerStatus } from "@discordjs/voice";
 import * as prism from "prism-media";
-import { rmsDb, upsample24kMonoTo48kStereo } from "../audio/pcm";
-import type { createChildLogger } from "../logger";
-import { discordPlayer } from "../player";
+import { rmsDb, upsample24kMonoTo48kStereo } from "../audio/pcm.js";
+import type { createChildLogger } from "../logger.js";
+import { discordPlayer } from "../player.js";
 
 type Logger = ReturnType<typeof createChildLogger>;
 

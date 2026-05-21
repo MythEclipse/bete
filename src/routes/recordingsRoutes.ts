@@ -4,9 +4,9 @@ import {
   type Response,
   Router,
 } from "express";
-import { listVoiceRecordings } from "../database/voiceRecordingRepo";
-import { AppError } from "../errors";
-import { createChildLogger } from "../logger";
+import { listVoiceRecordings } from "../database/voiceRecordingRepo.js";
+import { AppError } from "../errors.js";
+import { createChildLogger } from "../logger.js";
 
 const logger = createChildLogger("recordings-routes");
 

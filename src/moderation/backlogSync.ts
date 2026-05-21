@@ -1,7 +1,7 @@
 import type { Channel, Client, Message } from "discord.js-selfbot-v13";
-import { config } from "../config";
-import { createChildLogger } from "../logger";
-import { captureMessage } from "./messageCapture";
+import { config } from "../config.js";
+import { createChildLogger } from "../logger.js";
+import { captureMessage } from "./messageCapture.js";
 
 const logger = createChildLogger("backlog-sync");
 

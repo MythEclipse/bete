@@ -1,12 +1,12 @@
 import type { WebSocket } from "ws";
-import { createChildLogger } from "../logger";
+import { createChildLogger } from "../logger.js";
 import type {
   AnalysisQueueStatus,
   AttachmentRecord,
   MediaState,
   MessageRecord,
   ModerationWsEvent,
-} from "./types";
+} from "./types.js";
 
 export type BroadcasterClient = Pick<WebSocket, "readyState" | "send">;
 

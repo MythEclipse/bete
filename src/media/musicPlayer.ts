@@ -1,13 +1,13 @@
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { spawn as nodeSpawn } from "node:child_process";
 import { StreamType } from "@discordjs/voice";
-import { discordPlayer } from "../player";
+import { discordPlayer } from "../player.js";
 import type {
   DiscordAudioPlayer,
   MusicPlayback,
   MusicPlayer,
   ResolvedMediaSource,
-} from "./mediaTypes";
+} from "./mediaTypes.js";
 
 export interface MusicPlayerDependencies {
   spawn?: typeof nodeSpawn;

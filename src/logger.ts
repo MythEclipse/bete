@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import winston from "winston";
-import { formatLogMetadata, serializeLogValue } from "./loggerSerialization";
+import { formatLogMetadata, serializeLogValue } from "./loggerSerialization.js";
 
 const isDev = process.env.NODE_ENV !== "production";
 const logLevel = process.env.LOG_LEVEL || (isDev ? "debug" : "info");

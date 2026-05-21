@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import * as prism from "prism-media";
-import type { SegmentState } from "../types";
+import type { SegmentState } from "../types.js";
 
 export function buildSegmentPaths(
   userDir: string,

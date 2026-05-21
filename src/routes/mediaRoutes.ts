@@ -1,8 +1,8 @@
 import type { NextFunction, Request, Response, Router } from "express";
 import express from "express";
-import { AppError } from "../errors";
-import type { MediaController } from "../media/mediaController";
-import type { MediaMode } from "../media/mediaTypes";
+import { AppError } from "../errors.js";
+import type { MediaController } from "../media/mediaController.js";
+import type { MediaMode } from "../media/mediaTypes.js";
 
 export type MediaRouteController = Pick<
   MediaController,

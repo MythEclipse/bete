@@ -1,16 +1,16 @@
 import { Worker } from "node:worker_threads";
-import { config } from "../config";
-import { createChildLogger } from "../logger";
+import { config } from "../config.js";
+import { createChildLogger } from "../logger.js";
 import {
   getMessageById,
   getPendingConversationKeys,
   getPendingMessagesByConversation,
-} from "./messageStore";
+} from "./messageStore.js";
 import type {
   AnalysisQueueStatus,
   MessageRecord,
   ModerationBroadcaster,
-} from "./types";
+} from "./types.js";
 
 const logger = createChildLogger("ai-analyzer");
 
@@ -163,7 +163,7 @@ async function runAnalysisInWorker(
 ): Promise<AnalysisWorkerResponse> {
   return new Promise((resolve, reject) => {
     const worker = new Worker(
-      new URL("./aiAnalysisWorker.ts", import.meta.url),
+      new URL("./aiAnalysisWorker.js", import.meta.url),
       { execArgv: process.execArgv },
     );
 

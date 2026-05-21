@@ -11,7 +11,7 @@ import {
 import type {
   DiscordPlayerOwner,
   DiscordPlayOptions,
-} from "./media/mediaTypes";
+} from "./media/mediaTypes.js";
 
 export class DiscordPlayer {
   private player: AudioPlayer;

@@ -1,25 +1,25 @@
 import http from "node:http";
 import type { Client } from "discord.js-selfbot-v13";
-import { config } from "../config";
-import { createChildLogger } from "../logger";
-import { MediaController } from "../media/mediaController";
-import { createScreenShareController } from "../media/screenShareController";
-import { createBroadcaster } from "../moderation/broadcaster";
+import { config } from "../config.js";
+import { createChildLogger } from "../logger.js";
+import { MediaController } from "../media/mediaController.js";
+import { createScreenShareController } from "../media/screenShareController.js";
+import { createBroadcaster } from "../moderation/broadcaster.js";
 import {
   initializeMediaSettings,
   persistMediaSettings,
-} from "../state/mediaSettings";
-import { createSharedUIStateStore } from "../state/uiState";
-import { Streamer } from "../streaming";
-import type { VoiceController } from "../voiceController";
+} from "../state/mediaSettings.js";
+import { createSharedUIStateStore } from "../state/uiState.js";
+import { Streamer } from "../streaming/index.js";
+import type { VoiceController } from "../voiceController.js";
 import {
   exposeActiveUserGlobal,
   exposeModerationGlobals,
   exposePcmBroadcastGlobal,
   exposeVideoBroadcastGlobal,
-} from "../ws/broadcastGlobals";
-import { startWebSocketServer } from "../ws/server";
-import { createHttpApp } from "./app";
+} from "../ws/broadcastGlobals.js";
+import { startWebSocketServer } from "../ws/server.js";
+import { createHttpApp } from "./app.js";
 
 const serverLogger = createChildLogger("webserver");
 

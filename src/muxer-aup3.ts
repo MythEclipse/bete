@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { buildMuxFfmpegArgs, runFfmpeg } from "./audio/ffmpegProcess";
+import { buildMuxFfmpegArgs, runFfmpeg } from "./audio/ffmpegProcess.js";
 
 const recordingsDir = process.env.RECORDINGS_DIR ?? "./recordings";
 

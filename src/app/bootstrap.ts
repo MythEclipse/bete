@@ -1,15 +1,15 @@
 import { Client } from "discord.js-selfbot-v13";
-import { config } from "../config";
-import { closeDatabase, initializeDatabase } from "../database/drizzle";
-import { createDiscordClientOptions } from "../discordClientOptions";
-import { createChildLogger } from "../logger";
-import { startPendingAIAnalysisWorker } from "../moderation/aiAnalyzer";
-import { syncBacklogMessages } from "../moderation/backlogSync";
-import { registerMessageCapture } from "../moderation/messageCapture";
-import { discordPlayer } from "../player";
-import { VoiceController } from "../voiceController";
-import { startWebserver } from "../webserver";
-import { createGracefulShutdown } from "./shutdown";
+import { config } from "../config.js";
+import { closeDatabase, initializeDatabase } from "../database/drizzle.js";
+import { createDiscordClientOptions } from "../discordClientOptions.js";
+import { createChildLogger } from "../logger.js";
+import { startPendingAIAnalysisWorker } from "../moderation/aiAnalyzer.js";
+import { syncBacklogMessages } from "../moderation/backlogSync.js";
+import { registerMessageCapture } from "../moderation/messageCapture.js";
+import { discordPlayer } from "../player.js";
+import { VoiceController } from "../voiceController.js";
+import { startWebserver } from "../webserver.js";
+import { createGracefulShutdown } from "./shutdown.js";
 
 export async function initializeApp() {
   const logger = createChildLogger("bot");

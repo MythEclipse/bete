@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
-import { AppError } from "./errors";
-import { createChildLogger } from "./logger";
+import { AppError } from "./errors.js";
+import { createChildLogger } from "./logger.js";
 
 const logger = createChildLogger("middleware");
 

@@ -2,8 +2,8 @@ import "./mock-crc";
 import "libsodium-wrappers";
 import "@snazzah/davey";
 import "dotenv/config";
-import { initializeApp } from "./app/bootstrap";
-import { createChildLogger } from "./logger";
+import { initializeApp } from "./app/bootstrap.js";
+import { createChildLogger } from "./logger.js";
 
 const logger = createChildLogger("bot");
 

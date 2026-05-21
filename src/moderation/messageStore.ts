@@ -9,16 +9,16 @@ import {
   type SQL,
   sql,
 } from "drizzle-orm";
-import { getDatabase } from "../database/drizzle.ts";
-import { attachmentsTable, messagesTable } from "../database/schema.ts";
-import { createChildLogger } from "../logger.ts";
-import { decodeCursor, encodeCursor } from "./pagination.ts";
+import { getDatabase } from "../database/drizzle.js";
+import { attachmentsTable, messagesTable } from "../database/schema.js";
+import { createChildLogger } from "../logger.js";
+import { decodeCursor, encodeCursor } from "./pagination.js";
 import type {
   AttachmentRecord,
   MessageQuery,
   MessageRecord,
   PageResult,
-} from "./types";
+} from "./types.js";
 
 const logger = createChildLogger("message-store");
 
@@ -105,7 +105,7 @@ function pageMessages(
   return { data, nextCursor };
 }
 
-export { decodeCursor, encodeCursor } from "./pagination.ts";
+export { decodeCursor, encodeCursor } from "./pagination.js";
 
 export async function insertMessage(message: MessageRecord): Promise<void> {
   try {

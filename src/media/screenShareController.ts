@@ -1,12 +1,12 @@
-import { AppError } from "../errors";
-import { createChildLogger } from "../logger";
-import { discordPlayer } from "../player";
-import { playPreparedStream, Streamer } from "../streaming";
+import { AppError } from "../errors.js";
+import { createChildLogger } from "../logger.js";
+import { discordPlayer } from "../player.js";
+import { playPreparedStream, Streamer } from "../streaming/index.js";
 
 const logger = createChildLogger("screen-share");
 
-import type { DiscordPlayerOwner, ScreenSharePlayback } from "./mediaTypes";
-import { createYtDlp } from "./ytdlp";
+import type { DiscordPlayerOwner, ScreenSharePlayback } from "./mediaTypes.js";
+import { createYtDlp } from "./ytdlp.js";
 
 export interface ScreenShareVoiceStatus {
   connected: boolean;
@@ -105,8 +105,8 @@ export function createScreenShareController(
 
         let stopped = false;
         const playFn = dependencies.useTranscoder
-          ? (await import("../streaming")).playTranscodedPreparedStream
-          : (await import("../streaming")).playPreparedStream;
+          ? (await import("../streaming/index.js")).playTranscodedPreparedStream
+          : (await import("../streaming/index.js")).playPreparedStream;
 
         const done = playFn(directUrl, session, {
           fps: 30,

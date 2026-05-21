@@ -3,8 +3,8 @@ import path from "node:path";
 import {
   buildMuxFfmpegArgs,
   runFfmpeg as defaultRunFfmpeg,
-} from "../audio/ffmpegProcess";
-import type { UserMetadata } from "../types";
+} from "../audio/ffmpegProcess.js";
+import type { UserMetadata } from "../types.js";
 
 export type SessionRecordingStatus =
   | "pending"

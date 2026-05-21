@@ -1,9 +1,9 @@
 import type { Server as HttpServer } from "node:http";
 import { WebSocketServer } from "ws";
-import type { createChildLogger } from "../logger";
-import type { MediaController } from "../media/mediaController";
-import type { ModerationBroadcaster } from "../moderation/types";
-import { createVoiceAudioBridge } from "./voiceAudioBridge";
+import type { createChildLogger } from "../logger.js";
+import type { MediaController } from "../media/mediaController.js";
+import type { ModerationBroadcaster } from "../moderation/types.js";
+import { createVoiceAudioBridge } from "./voiceAudioBridge.js";
 
 type Logger = ReturnType<typeof createChildLogger>;
 

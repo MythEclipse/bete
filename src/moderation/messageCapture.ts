@@ -1,22 +1,22 @@
 import type { Client, Message } from "discord.js-selfbot-v13";
-import { config } from "../config";
-import { createChildLogger } from "../logger";
-import { getModerationBroadcaster } from "../ws/broadcastGlobals";
-import { queueMessageAnalysis } from "./aiAnalyzer";
-import { processAttachmentUpload } from "./attachmentUploader";
+import { config } from "../config.js";
+import { createChildLogger } from "../logger.js";
+import { getModerationBroadcaster } from "../ws/broadcastGlobals.js";
+import { queueMessageAnalysis } from "./aiAnalyzer.js";
+import { processAttachmentUpload } from "./attachmentUploader.js";
 import {
   getDisplayContent,
   getMessageLocation,
   getMessageMetadata,
-} from "./messageMetadata";
+} from "./messageMetadata.js";
 import {
   getMessageById,
   insertAttachment,
   updateMessageAsDeleted,
   updateMessageAsEdited,
   upsertMessageForCapture,
-} from "./messageStore";
-import type { AttachmentRecord, MessageRecord } from "./types";
+} from "./messageStore.js";
+import type { AttachmentRecord, MessageRecord } from "./types.js";
 
 const logger = createChildLogger("message-capture");
 

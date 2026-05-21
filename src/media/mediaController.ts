@@ -1,8 +1,8 @@
-import { AppError } from "../errors";
-import { createChildLogger } from "../logger";
-import { discordPlayer } from "../player";
-import { MediaQueue } from "./mediaQueue";
-import { resolveMediaSource } from "./mediaResolver";
+import { AppError } from "../errors.js";
+import { createChildLogger } from "../logger.js";
+import { discordPlayer } from "../player.js";
+import { MediaQueue } from "./mediaQueue.js";
+import { resolveMediaSource } from "./mediaResolver.js";
 import type {
   MediaMode,
   MediaState,
@@ -12,8 +12,8 @@ import type {
   ResolvedMediaSource,
   ScreenShareController,
   ScreenSharePlayback,
-} from "./mediaTypes";
-import { createMusicPlayer } from "./musicPlayer";
+} from "./mediaTypes.js";
+import { createMusicPlayer } from "./musicPlayer.js";
 
 const logger = createChildLogger("mediaController");
 

@@ -1,5 +1,5 @@
 import { EndBehaviorType, type VoiceReceiver } from "@discordjs/voice";
-import { config } from "../config";
+import { config } from "../config.js";
 
 export interface AudioStreamHandlers {
   onPacket: (chunk: Buffer) => void;

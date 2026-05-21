@@ -1,9 +1,9 @@
 import type { Client } from "discord.js-selfbot-v13";
 import type { Router } from "express";
 import express from "express";
-import { AppError } from "../errors";
-import { createChildLogger } from "../logger";
-import { syncSelectedChannelBacklog } from "../moderation/backlogSync";
+import { AppError } from "../errors.js";
+import { createChildLogger } from "../logger.js";
+import { syncSelectedChannelBacklog } from "../moderation/backlogSync.js";
 
 const logger = createChildLogger("sync-routes");
 const BACKLOG_SYNC_COOLDOWN_MS = 5 * 60 * 1000;

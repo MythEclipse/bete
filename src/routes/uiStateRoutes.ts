@@ -1,6 +1,6 @@
 import type { Router } from "express";
 import express from "express";
-import type { SharedUIState, SharedUIStatePatch } from "../state/uiState";
+import type { SharedUIState, SharedUIStatePatch } from "../state/uiState.js";
 
 export { SharedUIState, SharedUIStatePatch };
 

@@ -8,20 +8,20 @@ import express, {
   type Response,
 } from "express";
 import helmet from "helmet";
-import { AppError } from "../errors";
-import type { createChildLogger } from "../logger";
-import type { MediaController } from "../media/mediaController";
-import type { ModerationBroadcaster } from "../moderation/types";
-import { createAnalysisRoutes } from "../routes/analysisRoutes";
-import { createMediaRoutes } from "../routes/mediaRoutes";
-import { createMessageRoutes } from "../routes/messageRoutes";
-import { createRecordingsRoutes } from "../routes/recordingsRoutes";
-import { createSyncRoutes } from "../routes/syncRoutes";
-import { createUIStateRoutes } from "../routes/uiStateRoutes";
-import { createVoiceRoutes } from "../routes/voiceRoutes";
-import type { SharedUIStatePatch } from "../state/uiState";
-import type { VoiceController } from "../voiceController";
-import { createHealthRoutes } from "./health";
+import { AppError } from "../errors.js";
+import type { createChildLogger } from "../logger.js";
+import type { MediaController } from "../media/mediaController.js";
+import type { ModerationBroadcaster } from "../moderation/types.js";
+import { createAnalysisRoutes } from "../routes/analysisRoutes.js";
+import { createMediaRoutes } from "../routes/mediaRoutes.js";
+import { createMessageRoutes } from "../routes/messageRoutes.js";
+import { createRecordingsRoutes } from "../routes/recordingsRoutes.js";
+import { createSyncRoutes } from "../routes/syncRoutes.js";
+import { createUIStateRoutes } from "../routes/uiStateRoutes.js";
+import { createVoiceRoutes } from "../routes/voiceRoutes.js";
+import type { SharedUIStatePatch } from "../state/uiState.js";
+import type { VoiceController } from "../voiceController.js";
+import { createHealthRoutes } from "./health.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

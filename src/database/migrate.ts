@@ -3,9 +3,9 @@ import Database from "better-sqlite3";
 import { drizzle as drizzleSqlite } from "drizzle-orm/better-sqlite3";
 import { migrate as migrateSqlite } from "drizzle-orm/better-sqlite3/migrator";
 import { migrate as migratePostgres } from "drizzle-orm/node-postgres/migrator";
-import { config } from "../config";
-import { createChildLogger } from "../logger";
-import { closeDatabase, initializeDatabase } from "./drizzle";
+import { config } from "../config.js";
+import { createChildLogger } from "../logger.js";
+import { closeDatabase, initializeDatabase } from "./drizzle.js";
 
 const logger = createChildLogger("migrate");
 

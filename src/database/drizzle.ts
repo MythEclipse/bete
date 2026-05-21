@@ -2,9 +2,9 @@ import Database from "better-sqlite3";
 import { drizzle as drizzleSqlite } from "drizzle-orm/better-sqlite3";
 import { drizzle as drizzlePostgres } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { config } from "../config.ts";
-import { createChildLogger } from "../logger.ts";
-import * as schema from "./schema.ts";
+import { config } from "../config.js";
+import { createChildLogger } from "../logger.js";
+import * as schema from "./schema.js";
 
 const logger = createChildLogger("drizzle");
 

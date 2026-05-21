@@ -1,7 +1,7 @@
 import path from "node:path";
 import type { Client, VoiceChannel } from "discord.js-selfbot-v13";
-import { config } from "../config";
-import type { SegmentMetadata, SegmentState, UserMetadata } from "../types";
+import { config } from "../config.js";
+import type { SegmentMetadata, SegmentState, UserMetadata } from "../types.js";
 
 export async function collectUserMetadata(
   client: Client,

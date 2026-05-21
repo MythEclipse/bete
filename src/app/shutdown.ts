@@ -1,8 +1,8 @@
 import type { Client } from "discord.js-selfbot-v13";
-import type { closeDatabase } from "../database/drizzle";
-import type { createChildLogger } from "../logger";
-import type { discordPlayer } from "../player";
-import type { VoiceController } from "../voiceController";
+import type { closeDatabase } from "../database/drizzle.js";
+import type { createChildLogger } from "../logger.js";
+import type { discordPlayer } from "../player.js";
+import type { VoiceController } from "../voiceController.js";
 
 type Logger = ReturnType<typeof createChildLogger>;
 type CloseDatabase = typeof closeDatabase;

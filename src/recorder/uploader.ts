@@ -1,13 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
-import { config } from "../config";
+import { config } from "../config.js";
 import {
   insertVoiceRecording,
   updateVoiceRecordingAsFailed,
   updateVoiceRecordingAsUploaded,
-} from "../database/voiceRecordingRepo";
-import { createChildLogger } from "../logger";
-import { uploadToTele } from "../uploader/teleUpload";
+} from "../database/voiceRecordingRepo.js";
+import { createChildLogger } from "../logger.js";
+import { uploadToTele } from "../uploader/teleUpload.js";
 
 const logger = createChildLogger("recording-uploader");
 

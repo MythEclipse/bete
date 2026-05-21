@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 import * as prism from "prism-media";
-import { config } from "../config";
+import { config } from "../config.js";
 
 const require = createRequire(import.meta.url);
 

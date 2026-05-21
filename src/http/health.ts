@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getMetrics, uptimeGauge } from "../metrics";
+import { getMetrics, uptimeGauge } from "../metrics.js";
 
 export interface HealthRoutesOptions {
   adminPassword: string;

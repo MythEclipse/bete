@@ -1,5 +1,5 @@
-import type { CustomLogger } from "../logger";
-import { retryWithBackoff } from "../retry";
+import type { CustomLogger } from "../logger.js";
+import { retryWithBackoff } from "../retry.js";
 
 export interface TeleUploadResponse {
   download_url: string;
