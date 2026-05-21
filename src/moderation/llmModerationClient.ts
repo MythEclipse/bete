@@ -415,6 +415,88 @@ interface ModerationOutput {
 }
 
 /**
+ * Sniff the first bytes of a buffer to determine if it is a supported image
+ * format. Returns the canonical MIME type string on success, or null if the
+ * bytes are not a recognizable image.
+ *
+ * Supported probes (in order):
+ *   - JPEG:  FF D8 FF
+ *   - PNG:   89 50 4E 47 0D 0A 1A 0A
+ *   - GIF:   47 49 46 38 (GIF8)
+ *   - WebP:  52 49 46 46 ?? ?? ?? ?? 57 45 42 50 (RIFF....WEBP)
+ *   - AVIF / HEIF: 4-byte big-endian size + 66 74 79 70 (ftyp ISO base-media box)
+ */
+function sniffImageMimeType(buf: Buffer): string | null {
+  if (buf.length < 12) return null;
+
+  // JPEG
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
+    return "image/jpeg";
+  }
+
+  // PNG
+  if (
+    buf[0] === 0x89 &&
+    buf[1] === 0x50 &&
+    buf[2] === 0x4e &&
+    buf[3] === 0x47 &&
+    buf[4] === 0x0d &&
+    buf[5] === 0x0a &&
+    buf[6] === 0x1a &&
+    buf[7] === 0x0a
+  ) {
+    return "image/png";
+  }
+
+  // GIF
+  if (
+    buf[0] === 0x47 &&
+    buf[1] === 0x49 &&
+    buf[2] === 0x46 &&
+    buf[3] === 0x38
+  ) {
+    return "image/gif";
+  }
+
+  // WebP: RIFF????WEBP
+  if (
+    buf[0] === 0x52 &&
+    buf[1] === 0x49 &&
+    buf[2] === 0x46 &&
+    buf[3] === 0x46 &&
+    buf[8] === 0x57 &&
+    buf[9] === 0x45 &&
+    buf[10] === 0x42 &&
+    buf[11] === 0x50
+  ) {
+    return "image/webp";
+  }
+
+  // AVIF / HEIF: ISO base media file format — ftyp box at offset 4
+  if (
+    buf.length >= 12 &&
+    buf[4] === 0x66 &&
+    buf[5] === 0x74 &&
+    buf[6] === 0x79 &&
+    buf[7] === 0x70
+  ) {
+    const brand = buf.subarray(8, 12).toString("ascii");
+    if (brand.startsWith("avif") || brand.startsWith("avis")) {
+      return "image/avif";
+    }
+    if (
+      brand.startsWith("mif1") ||
+      brand.startsWith("heic") ||
+      brand.startsWith("heis")
+    ) {
+      return "image/heic";
+    }
+  }
+
+  return null;
+}
+
+/**
  * Runs LLM-based moderation analysis on messages.
  * POSTs to AI_LLM_BASE_URL with auth bearer token.
  */
@@ -497,15 +579,35 @@ Return ONLY valid JSON, no other text.`;
             const res = await fetch(urlToUse);
             if (!res.ok) {
               log.warn(
-                { attachmentId: att.id, status: res.status },
-                "Failed to fetch attachment image",
+                { attachmentId: att.id, status: res.status, url: urlToUse },
+                "Failed to fetch attachment image — non-2xx status",
               );
               return [];
             }
 
             const buffer = await res.arrayBuffer();
-            const base64Str = Buffer.from(buffer).toString("base64");
-            const dataUrl = `data:${att.type};base64,${base64Str}`;
+            const imageBytes = Buffer.from(buffer);
+
+            // Guard against HTML error pages, redirects, or octet streams
+            // that the CDN might serve under a stale URL.
+            const sniffedMime = sniffImageMimeType(imageBytes);
+            if (!sniffedMime) {
+              log.warn(
+                {
+                  attachmentId: att.id,
+                  url: urlToUse,
+                  dbType: att.type,
+                  bytesLength: imageBytes.length,
+                  // First 16 bytes as hex to aid diagnosis
+                  headerHex: imageBytes.subarray(0, 16).toString("hex"),
+                },
+                "Skipping attachment: downloaded bytes are not a recognised image format",
+              );
+              return [];
+            }
+
+            const base64Str = imageBytes.toString("base64");
+            const dataUrl = `data:${sniffedMime};base64,${base64Str}`;
 
             return [
               {

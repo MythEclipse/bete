@@ -35,12 +35,13 @@ function shouldRefreshDiscordUrl(error: unknown): boolean {
 export async function uploadAttachmentToTele(
   fileBuffer: Buffer,
   filename: string,
+  contentType = "application/octet-stream",
 ): Promise<string> {
   try {
     const result = await uploadToTele({
       buffer: fileBuffer,
       filename,
-      contentType: "application/octet-stream",
+      contentType,
       uploadUrl: config.TELE_UPLOAD_URL,
       timeoutMs: config.ATTACHMENT_UPLOAD_TIMEOUT_MS,
       retries: config.ATTACHMENT_RETRY_ATTEMPTS,
@@ -88,7 +89,10 @@ export async function processAttachmentUpload(
   attachmentId: string,
   discordUrl: string,
   filename: string,
-  options: { refreshDiscordUrl?: RefreshDiscordAttachmentUrl } = {},
+  options: {
+    refreshDiscordUrl?: RefreshDiscordAttachmentUrl;
+    contentType?: string;
+  } = {},
 ): Promise<void> {
   try {
     let currentDiscordUrl = discordUrl;
@@ -114,7 +118,11 @@ export async function processAttachmentUpload(
       );
     }
 
-    const uploadedUrl = await uploadAttachmentToTele(buffer, filename);
+    const uploadedUrl = await uploadAttachmentToTele(
+      buffer,
+      filename,
+      options.contentType,
+    );
 
     await updateAttachmentAsUploaded(attachmentId, uploadedUrl, Date.now());
   } catch (error) {

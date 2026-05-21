@@ -144,6 +144,7 @@ export async function captureMessage(
             attachment.url,
             attachment.name || "unknown",
             {
+              contentType: attachment.contentType ?? undefined,
               refreshDiscordUrl: async () => {
                 const freshMessage = await message.channel.messages.fetch(
                   message.id,
