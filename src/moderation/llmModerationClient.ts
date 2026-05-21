@@ -511,149 +511,218 @@ export async function runModerationAnalysis(
 
   const targetIds = targets.map((t) => t.id);
 
-  const messagesText = targets
-    .map((msg) => `[${msg.id}] ${msg.username}: ${msg.content}`)
-    .join("\n");
+  // Build a lookup: message_id → list of resolved base64 image parts
+  type RawImagePart = { type: "image_url"; image_url: { url: string } };
+  type MessageImageMap = Map<string, RawImagePart[]>;
 
-  const moderationPrompt = `You are a content moderation assistant. Analyze messages for policy violations.
+  // Resolve and download image attachments, grouped by message_id.
+  // Only images whose message_id appears in the full attachment list are kept;
+  // target messages get priority in the 8-image global cap.
+  const getAttachmentImageUrl = (att: AttachmentRecord): string | null =>
+    att.uploaded_url ?? null;
 
-Context:
-${contextText}
-
-Messages to analyze:
-${messagesText}
-
-For each message, respond with a JSON object containing a "results" array.
-CRITICAL: You MUST return the "message_id" EXACTLY as provided in the input, and it MUST be wrapped in double quotes as a STRING. Do not treat IDs as numbers.
-
-Each result must have:
-- message_id: the message ID (STRING, exactly as provided)
-- status: "clean", "warn", or "flagged"
-- flags: array of violation flags (e.g., ["spam", "hate_speech"])
-- score: confidence score from 0 to 1
-- analysis: brief explanation
-
-Do not include reasoning, analysis steps, markdown, prose, XML tags, or comments.
-Return ONLY valid JSON, no other text.`;
-
-  // Check for image attachments to support multimodal analysis
   const targetIdSet = new Set(targets.map((t) => t.id));
-  const getAttachmentImageUrl = (att: AttachmentRecord): string | null => {
-    if (att.uploaded_url) return att.uploaded_url;
-    return null;
-  };
-  const imageAttachments = (attachments || [])
-    .filter(
-      (att) => getAttachmentImageUrl(att) && att.type.startsWith("image/"),
-    )
+
+  const candidateAttachments = (attachments ?? [])
+    .filter((att) => getAttachmentImageUrl(att) && att.type.startsWith("image/"))
     .sort((a, b) => {
+      // Target-message attachments always come first so they consume the cap first
       const aIsTarget = targetIdSet.has(a.message_id) ? 1 : 0;
       const bIsTarget = targetIdSet.has(b.message_id) ? 1 : 0;
-      if (aIsTarget !== bIsTarget) {
-        return bIsTarget - aIsTarget; // Target messages first
-      }
-      return b.created_at - a.created_at; // Most recent first
+      if (aIsTarget !== bIsTarget) return bIsTarget - aIsTarget;
+      // Within the same priority tier, newest first
+      return b.created_at - a.created_at;
     })
-    .slice(0, 8); // Cap at 8 to prevent LLM API limits (e.g. Nemotron/Omni models 8-image limit)
+    .slice(0, 8); // Hard cap — some vision APIs (Nemotron, Omni) reject >8 images
 
-  type MessageContent =
-    | string
-    | Array<{ type: string; text?: string; image_url?: { url: string } }>;
+  const messageImageMap: MessageImageMap = new Map();
 
-  let imageParts: Array<{
-    type: string;
-    text?: string;
-    image_url?: { url: string };
-  }> = [];
-  if (imageAttachments.length > 0) {
-    imageParts = (
-      await Promise.all(
-        imageAttachments.map(async (att) => {
-          try {
-            const urlToUse = getAttachmentImageUrl(att);
-            if (!urlToUse) return [];
-            log.info(
-              { attachmentId: att.id, url: urlToUse },
-              "Downloading attachment for base64 encoding",
-            );
-            const res = await fetch(urlToUse);
-            if (!res.ok) {
-              log.warn(
-                { attachmentId: att.id, status: res.status, url: urlToUse },
-                "Failed to fetch attachment image — non-2xx status",
-              );
-              return [];
-            }
+  await Promise.all(
+    candidateAttachments.map(async (att) => {
+      const urlToUse = getAttachmentImageUrl(att);
+      if (!urlToUse) return;
 
-            const buffer = await res.arrayBuffer();
-            const imageBytes = Buffer.from(buffer);
+      try {
+        log.info(
+          { attachmentId: att.id, messageId: att.message_id, url: urlToUse },
+          "Downloading attachment for base64 encoding",
+        );
+        const res = await fetch(urlToUse);
+        if (!res.ok) {
+          log.warn(
+            { attachmentId: att.id, status: res.status, url: urlToUse },
+            "Failed to fetch attachment image — non-2xx status",
+          );
+          return;
+        }
 
-            // Guard against HTML error pages, redirects, or octet streams
-            // that the CDN might serve under a stale URL.
-            const sniffedMime = sniffImageMimeType(imageBytes);
-            if (!sniffedMime) {
-              log.warn(
-                {
-                  attachmentId: att.id,
-                  url: urlToUse,
-                  dbType: att.type,
-                  bytesLength: imageBytes.length,
-                  // First 16 bytes as hex to aid diagnosis
-                  headerHex: imageBytes.subarray(0, 16).toString("hex"),
-                },
-                "Skipping attachment: downloaded bytes are not a recognised image format",
-              );
-              return [];
-            }
+        const imageBytes = Buffer.from(await res.arrayBuffer());
+        const sniffedMime = sniffImageMimeType(imageBytes);
+        if (!sniffedMime) {
+          log.warn(
+            {
+              attachmentId: att.id,
+              url: urlToUse,
+              dbType: att.type,
+              bytesLength: imageBytes.length,
+              headerHex: imageBytes.subarray(0, 16).toString("hex"),
+            },
+            "Skipping attachment: downloaded bytes are not a recognised image format",
+          );
+          return;
+        }
 
-            const base64Str = imageBytes.toString("base64");
-            const dataUrl = `data:${sniffedMime};base64,${base64Str}`;
+        const dataUrl = `data:${sniffedMime};base64,${imageBytes.toString("base64")}`;
+        const part: RawImagePart = { type: "image_url", image_url: { url: dataUrl } };
 
-            return [
-              {
-                type: "image_url",
-                image_url: {
-                  url: dataUrl,
-                },
-              },
-              {
-                type: "text",
-                text: `\n[Image Attachment for Message ID: ${att.message_id}, Filename: ${att.filename}]`,
-              },
-            ];
-          } catch (err) {
-            log.warn(
-              {
-                attachmentId: att.id,
-                error: err instanceof Error ? err.message : String(err),
-              },
-              "Error base64 encoding attachment",
-            );
-            return [];
-          }
-        }),
-      )
-    ).flat();
-  }
+        const existing = messageImageMap.get(att.message_id) ?? [];
+        existing.push(part);
+        messageImageMap.set(att.message_id, existing);
+      } catch (err) {
+        log.warn(
+          {
+            attachmentId: att.id,
+            error: err instanceof Error ? err.message : String(err),
+          },
+          "Error base64 encoding attachment",
+        );
+      }
+    }),
+  );
+
+  const hasImages = messageImageMap.size > 0;
+
+  // -------------------------------------------------------------------------
+  // System prompt — Indonesian-first, English as secondary language.
+  //
+  // Core design decisions:
+  //  • Explicitly names the server as a Discord community whose primary
+  //    communication language is Indonesian; English is secondary.
+  //  • Instructs the model to understand Indonesian slang, abbreviations,
+  //    and culturally specific harmful patterns (SARA, hoaks, dll).
+  //  • When images are present, instructs the model to treat each image as
+  //    an integral part of the message that precedes it — not as standalone
+  //    content — so text + image are evaluated together.
+  //  • Strict JSON-only output, no markdown or prose.
+  // -------------------------------------------------------------------------
+  const buildSystemPrompt = (correction?: {
+    error: string;
+    preview: string;
+  }): string => {
+    const imageInstructions = hasImages
+      ? `
+## Instruksi Analisis Gambar
+Beberapa pesan menyertakan lampiran gambar. Setiap gambar muncul TEPAT SETELAH baris teks pesan yang memilikinya.
+Gambar dan teks pesan harus dianalisis sebagai SATU KESATUAN — evaluasilah konten teks DAN gambar secara bersamaan untuk membentuk kesimpulan final.
+Jangan pisahkan penilaian gambar dari konteks teks pesannya.
+Jika gambar mengandung teks (meme, screenshot), baca dan pertimbangkan teks tersebut sebagai bagian dari konten pesan.
+`
+      : "";
+
+    const base = `Kamu adalah asisten moderasi konten untuk server Discord berbahasa Indonesia.
+Bahasa utama komunitas ini adalah BAHASA INDONESIA. Bahasa Inggris adalah bahasa sekunder.
+
+## Konteks Server
+Ini adalah server Discord komunitas Indonesia. Kamu harus memahami:
+- Bahasa gaul/slang Indonesia: "anjay", "wkwk", "gws", "gaskeun", "santuy", "njir", "baka", dll.
+- Singkatan umum: "gw", "lo", "emg", "kyk", "tdk", "krn", "jgn", dll.
+- Konteks budaya lokal: SARA (Suku, Agama, Ras, Antar-golongan), hoaks, ujaran kebencian berbasis konteks Indonesia.
+- Perbedaan antara humor/banter biasa vs konten yang benar-benar melanggar.
+- Kalimat ambigu dalam bahasa Indonesia harus ditafsirkan dengan charitable intent kecuali ada indikator kuat sebaliknya.
+${imageInstructions}
+## Konteks Percakapan
+${contextText}
+
+## Format Output
+Balas HANYA dengan satu objek JSON valid. Tanpa markdown, tanpa prose, tanpa komentar, tanpa XML.
+Struktur wajib:
+{
+  "results": [
+    {
+      "message_id": "<ID string PERSIS seperti di input>",
+      "status": "clean" | "warn" | "flagged",
+      "flags": [<string array, kosong jika clean>],
+      "score": <float 0.0–1.0>,
+      "analysis": "<penjelasan singkat dalam Bahasa Indonesia, maks 2 kalimat>"
+    }
+  ]
+}
+
+Kriteria status:
+- "clean": tidak ada pelanggaran yang terdeteksi
+- "warn": konten berpotensi melanggar atau memerlukan perhatian moderator
+- "flagged": pelanggaran jelas terdeteksi
+
+Flag yang valid: spam, hate_speech, sara, hoaks, harassment, sexual_content, violence, self_harm, doxxing, scam, misinformation, nsfw_image, gore_image, illegal_content
+
+CRITICAL: "message_id" HARUS berupa STRING (dibungkus tanda kutip ganda). Jangan perlakukan ID sebagai angka — ini snowflake Discord yang bisa kehilangan presisi jika diparse sebagai number.`;
+
+    if (correction) {
+      return `${base}\n\nRESPON SEBELUMNYA GAGAL VALIDASI.\nError: ${correction.error}\nPreview respons tidak valid:\n${correction.preview}\n\nCoba lagi dengan output JSON yang benar sesuai skema di atas.`;
+    }
+    return base;
+  };
+
+  // -------------------------------------------------------------------------
+  // Build the user-turn content.
+  //
+  // When images exist, we build an interleaved multipart array:
+  //   [system prompt text] → for each target: [msg text part] → [image(s) for that msg]
+  //
+  // This interleaving is the critical fix: it ensures the vision model
+  // processes each image in direct proximity to its owning message text,
+  // rather than receiving all images as a disconnected prologue.
+  // -------------------------------------------------------------------------
+  type ContentPart = { type: "text"; text: string } | RawImagePart;
 
   let lastParseError: string | null = null;
   let lastInvalidContent: string | null = null;
-  const buildMessageContent = (): MessageContent => {
-    const correctionPrompt = lastParseError
-      ? `${moderationPrompt}\n\nPrevious response failed validation. Error: ${lastParseError}\nInvalid response preview:\n${lastInvalidContent?.slice(0, 1000) ?? "<empty>"}\n\nRetry with corrected output. Return ONLY one valid JSON object matching the required schema.`
-      : moderationPrompt;
 
-    if (imageParts.length > 0) {
-      return [
-        ...imageParts,
-        {
-          type: "text",
-          text: correctionPrompt,
-        },
-      ];
+  const buildMessageContent = (): string | ContentPart[] => {
+    const correction = lastParseError
+      ? { error: lastParseError, preview: lastInvalidContent?.slice(0, 800) ?? "<empty>" }
+      : undefined;
+
+    const systemText = buildSystemPrompt(correction);
+
+    if (!hasImages) {
+      // Pure-text path: format all targets in a single block
+      const messagesBlock = targets
+        .map((msg) => {
+          const content = msg.edited_content ?? msg.content;
+          return `[target] id=${msg.id} user=${msg.username}: ${content}`;
+        })
+        .join("\n");
+
+      return `${systemText}\n\n## Pesan yang Dianalisis\n${messagesBlock}`;
     }
 
-    return correctionPrompt;
+    // Multimodal path: interleave text + images per message
+    const parts: ContentPart[] = [
+      { type: "text", text: `${systemText}\n\n## Pesan yang Dianalisis (dengan lampiran gambar)\n` },
+    ];
+
+    for (const msg of targets) {
+      const content = msg.edited_content ?? msg.content;
+      const msgText = `[target] id=${msg.id} user=${msg.username}: ${content}`;
+      parts.push({ type: "text", text: msgText });
+
+      // Immediately follow the message text with its images
+      const imgs = messageImageMap.get(msg.id);
+      if (imgs && imgs.length > 0) {
+        for (const img of imgs) {
+          parts.push(img);
+        }
+        // Anchor label after the image(s) so the model's attention window
+        // links this image block back to the message ID above it
+        parts.push({
+          type: "text",
+          text: `[gambar di atas adalah lampiran dari pesan id=${msg.id}]`,
+        });
+      }
+    }
+
+    return parts;
   };
 
   let parsed: AnalysisResult[];
