@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import type { Client } from "discord.js-selfbot-v13";
 import express, {
   type NextFunction,
@@ -23,8 +22,8 @@ import type { SharedUIStatePatch } from "../state/uiState.js";
 import type { VoiceController } from "../voiceController.js";
 import { createHealthRoutes } from "./health.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const publicDir = path.resolve(process.cwd(), "public");
+const reactAppDir = path.join(publicDir, "app");
 
 type Logger = ReturnType<typeof createChildLogger>;
 
@@ -72,11 +71,11 @@ export function createHttpApp(options: CreateHttpAppOptions) {
   });
   app.use(express.json());
 
-  app.use(express.static(path.join(__dirname, "../../public")));
-  app.use(express.static(path.join(__dirname, "../../public/app")));
+  app.use(express.static(publicDir));
+  app.use(express.static(reactAppDir));
 
   app.get("/", (_req: Request, res: Response) => {
-    const reactIndex = path.join(__dirname, "../../public/app/index.html");
+    const reactIndex = path.join(reactAppDir, "index.html");
     if (fs.existsSync(reactIndex)) {
       res.sendFile(reactIndex);
       return;
