@@ -67,16 +67,37 @@ jobs:
 
             cat > docker-compose.yml <<'EOF'
             services:
-              bete:
+              app:
                 image: ${IMAGE_NAME}
-                container_name: imphenbot
+                container_name: imphenbot-app
                 restart: unless-stopped
                 env_file:
                   - .env
+                volumes:
+                  - ./recordings:/app/recordings
+                  - ./.muxer-queue.db:/app/.muxer-queue.db
+                  - ./.muxer-queue.db-shm:/app/.muxer-queue.db-shm
+                  - ./.muxer-queue.db-wal:/app/.muxer-queue.db-wal
+                labels:
+                  - "traefik.enable=true"
+                  - "traefik.http.routers.imphenbot.rule=Host(`imphnen.asepharyana.tech`)"
+                  - "traefik.http.routers.imphenbot.entrypoints=websecure"
+                  - "traefik.http.routers.imphenbot.tls=true"
+                  - "traefik.http.services.imphenbot.loadbalancer.server.port=3000"
+                networks:
+                  - app-shared-net
+
+            networks:
+              app-shared-net:
+                name: app-shared-net
+                external: true
             EOF
+
+            touch .muxer-queue.db .muxer-queue.db-shm .muxer-queue.db-wal
+            mkdir -p recordings
 
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
 
             docker compose pull
-            docker compose up -d
+            docker compose up -d --force-recreate --remove-orphans
             docker image prune -f
