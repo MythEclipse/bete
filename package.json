@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@dank074/discord-video-stream": "workspace:*",
+    "@discordjs/opus": "^0.10.0",
     "@discordjs/voice": "^0.19.2",
     "@radix-ui/react-scroll-area": "^1.2.10",
     "@radix-ui/react-slot": "^1.2.4",
@@ -44,6 +45,7 @@
     "libsodium-wrappers": "^0.8.4",
     "lucide-react": "^1.16.0",
     "openai": "^6.38.0",
+    "opusscript": "^0.0.8",
     "p-retry": "^8.0.0",
     "pg": "^8.21.0",
     "play-dl": "^1.9.7",
