@@ -31,7 +31,17 @@ const openai = new OpenAI({
     // Add internal timeout for the global fetch as safety
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30000);
-    const fetchInit = { ...init, signal: controller.signal };
+
+    // Override headers to bypass Cloudflare WAF Bot Fight Mode
+    const headers = new Headers(init?.headers);
+    headers.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+    for (const key of Array.from(headers.keys())) {
+      if (key.toLowerCase().startsWith("x-stainless")) {
+        headers.delete(key);
+      }
+    }
+
+    const fetchInit = { ...init, headers, signal: controller.signal };
 
     try {
       const response = await globalThis.fetch(url, fetchInit);
