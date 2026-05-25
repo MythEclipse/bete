@@ -44,6 +44,16 @@ export default async function processAnalysisRequest({
   conversationKey,
   messages,
 }: AnalysisWorkerRequest): Promise<AnalysisWorkerResponse> {
+  if (!config.AI_LLM_API_KEY) {
+    console.error(JSON.stringify({
+      level: "FATAL",
+      context: "aiAnalysisWorker",
+      error: "AI_LLM_API_KEY is missing from environment. Force closing worker operation.",
+      timestamp: new Date().toISOString(),
+    }));
+    process.exit(1);
+  }
+
   try {
     try {
       await ensureDb();

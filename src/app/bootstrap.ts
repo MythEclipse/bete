@@ -14,6 +14,11 @@ import { createGracefulShutdown } from "./shutdown.js";
 export async function initializeApp() {
   const logger = createChildLogger("bot");
 
+  if (!config.AI_LLM_API_KEY) {
+    logger.error("AI_LLM_API_KEY is missing from environment. Force closing application as AI environment is required.");
+    process.exit(1);
+  }
+
   const token = config.DISCORD_TOKEN;
   logger.info(
     { hasToken: token.length > 0, tokenLength: token.length },
