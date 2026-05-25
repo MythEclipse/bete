@@ -420,12 +420,14 @@ export async function updateMessageAIAnalysis(
 }
 
 export async function updateMessagesAIAnalysisBulk(
-  updates: Array<{ messageId: string; result: AIAnalysisUpdate }>
+  updates: Array<{ messageId: string; result: AIAnalysisUpdate }>,
 ): Promise<MessageRecord[]> {
   if (updates.length === 0) return [];
   try {
     const results = await Promise.all(
-      updates.map(({ messageId, result }) => updateMessageAIAnalysis(messageId, result))
+      updates.map(({ messageId, result }) =>
+        updateMessageAIAnalysis(messageId, result),
+      ),
     );
     return results.filter((r): r is MessageRecord => r !== null);
   } catch (error) {

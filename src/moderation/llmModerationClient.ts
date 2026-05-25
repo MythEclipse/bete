@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { z } from "zod";
 import { config } from "../config.js";
 import { createChildLogger } from "../logger.js";
 import { retryWithBackoff } from "../retry.js";
@@ -8,45 +9,66 @@ import type {
   MessageRecord,
 } from "./types.js";
 
+const ModerationResponseSchema = z.object({
+  results: z.array(
+    z.object({
+      message_id: z.union([z.string(), z.number()]).transform(String),
+      status: z.enum(["clean", "warn", "flagged"]).catch("clean"),
+      flags: z.array(z.string()).catch([]),
+      score: z.number().catch(0),
+      analysis: z.string().catch(""),
+    }),
+  ),
+});
+
 const log = createChildLogger("llmModerationClient");
 const openai = new OpenAI({
   apiKey: config.AI_LLM_API_KEY,
   baseURL: config.AI_LLM_BASE_URL,
   maxRetries: 0,
-  timeout: 2_147_483_647,
+  timeout: 30000,
   fetch: async (url, init) => {
-    const response = await globalThis.fetch(url, init);
-    const body =
-      typeof response.text === "function"
-        ? await response.text()
-        : JSON.stringify(await response.json());
+    // Add internal timeout for the global fetch as safety
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+    const fetchInit = { ...init, signal: controller.signal };
 
-    let normalizedBody = body;
-    if (response.ok !== false) {
-      try {
-        JSON.parse(body);
-      } catch (error) {
-        log.warn(
-          {
-            error: error instanceof Error ? error.message : String(error),
-            status: response.status ?? 200,
-            bodyLength: body.length,
-            body,
-          },
-          "LLM provider returned malformed JSON response body",
-        );
-        normalizedBody = JSON.stringify(extractJson(body));
+    try {
+      const response = await globalThis.fetch(url, fetchInit);
+      const body =
+        typeof response.text === "function"
+          ? await response.text()
+          : JSON.stringify(await response.json());
+
+      let normalizedBody = body;
+      if (response.ok !== false) {
+        try {
+          JSON.parse(body);
+        } catch (error) {
+          log.warn(
+            {
+              error: error instanceof Error ? error.message : String(error),
+              status: response.status ?? 200,
+              bodyLength: body.length,
+              body,
+            },
+            "LLM provider returned malformed JSON response body",
+          );
+          normalizedBody = JSON.stringify(extractJson(body));
+        }
       }
+
+      const headers = new Headers(response.headers ?? undefined);
+      headers.set("Content-Type", "application/json");
+      headers.delete("Content-Length");
+
+      return new Response(normalizedBody, {
+        status: response.status ?? 200,
+        headers,
+      });
+    } finally {
+      clearTimeout(timeout);
     }
-
-    const headers = new Headers(response.headers ?? undefined);
-    headers.set("Content-Type", "application/json");
-    headers.delete("Content-Length");
-
-    return new Response(normalizedBody, {
-      status: response.status ?? 200,
-      headers,
-    });
   },
 });
 
@@ -130,8 +152,6 @@ export function extractJson(content: string): any {
   throw new Error("No JSON object found in response");
 }
 
-
-
 export function parseModerationResponse(
   content: string,
   targetIds: string[],
@@ -156,66 +176,37 @@ export function parseModerationResponse(
     }
   }
 
-  if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.results)) {
-    throw new Error("Response missing 'results' array");
+  const parseResult = ModerationResponseSchema.safeParse(parsed);
+  if (!parseResult.success) {
+    throw new Error(`Zod validation failed: ${parseResult.error.message}`);
   }
 
-  const response = parsed as RawModerationResponse;
+  const response = parseResult.data;
   const foundIds = new Set<string>();
   const targetIdSet = new Set(targetIds);
 
-  const results: (AnalysisResult | null)[] = response.results.map(
-    (result, index) => {
-      const { message_id, status, flags, score, analysis } = result;
+  const results: (AnalysisResult | null)[] = response.results.map((result) => {
+    const { message_id, status, flags, score, analysis } = result;
+    const finalId = message_id.trim();
 
-      if (!message_id) {
-        throw new Error("Result missing 'message_id'");
-      }
+    if (!targetIdSet.has(finalId)) {
+      return null;
+    }
 
-      const finalId = String(message_id).trim();
+    if (foundIds.has(finalId)) {
+      return null; // Ignore duplicates safely
+    }
 
-      if (!targetIdSet.has(finalId)) {
-        log.warn(
-          { unknownId: finalId, originalId: message_id, targetIds },
-          "Skipping moderation result for non-target message_id",
-        );
-        return null;
-      }
+    foundIds.add(finalId);
 
-      if (foundIds.has(finalId)) {
-        log.warn({ duplicateId: finalId }, "Duplicate message_id in response");
-        throw new Error(`Duplicate message_id: ${finalId}`);
-      }
-
-      foundIds.add(finalId);
-
-      const validStatuses = ["clean", "warn", "flagged"] as const;
-      const safeStatus = validStatuses.includes(status as any) ? status : "clean";
-
-      let numScore = Number(score);
-      if (!Number.isFinite(numScore)) {
-        numScore = 0;
-      }
-      numScore = Math.max(0, Math.min(1, numScore));
-
-      let flagsArray: string[] = [];
-      if (Array.isArray(flags)) {
-        flagsArray = flags.map((f) => String(f));
-      } else if (flags) {
-        flagsArray = [String(flags)];
-      }
-
-      const analysisStr = analysis ? String(analysis) : "";
-
-      return {
-        messageId: finalId,
-        status: safeStatus as "clean" | "warn" | "flagged",
-        flags: flagsArray,
-        score: numScore,
-        analysis: analysisStr,
-      };
-    },
-  );
+    return {
+      messageId: finalId,
+      status: status as "clean" | "warn" | "flagged",
+      flags,
+      score: Math.max(0, Math.min(1, score)),
+      analysis,
+    };
+  });
 
   const filteredResults = results.filter(
     (r): r is AnalysisResult => r !== null,
@@ -362,7 +353,9 @@ export async function runModerationAnalysis(
   const targetIdSet = new Set(targets.map((t) => t.id));
 
   const candidateAttachments = (attachments ?? [])
-    .filter((att) => getAttachmentImageUrl(att) && att.type.startsWith("image/"))
+    .filter(
+      (att) => getAttachmentImageUrl(att) && att.type.startsWith("image/"),
+    )
     .sort((a, b) => {
       // Target-message attachments always come first so they consume the cap first
       const aIsTarget = targetIdSet.has(a.message_id) ? 1 : 0;
@@ -380,12 +373,16 @@ export async function runModerationAnalysis(
       const urlToUse = getAttachmentImageUrl(att);
       if (!urlToUse) return;
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
       try {
         log.info(
           { attachmentId: att.id, messageId: att.message_id, url: urlToUse },
           "Downloading attachment for base64 encoding",
         );
-        const res = await fetch(urlToUse);
+
+        const res = await fetch(urlToUse, { signal: controller.signal });
         if (!res.ok) {
           log.warn(
             { attachmentId: att.id, status: res.status, url: urlToUse },
@@ -394,13 +391,31 @@ export async function runModerationAnalysis(
           return;
         }
 
-        const contentLength = Number(res.headers.get("content-length") || 0);
-        if (contentLength > 10 * 1024 * 1024) {
-          log.warn({ attachmentId: att.id, contentLength }, "Attachment too large, skipping");
-          return;
+        if (!res.body) return;
+
+        let totalBytes = 0;
+        const chunks: Uint8Array[] = [];
+        const reader = res.body.getReader();
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          if (value) {
+            totalBytes += value.length;
+            if (totalBytes > 10 * 1024 * 1024) {
+              log.warn(
+                { attachmentId: att.id },
+                "Attachment exceeded 10MB limit, aborting stream",
+              );
+              reader.cancel();
+              return;
+            }
+            chunks.push(value);
+          }
         }
 
-        const imageBytes = Buffer.from(await res.arrayBuffer());
+        const imageBytes = Buffer.concat(chunks);
         const sniffedMime = sniffImageMimeType(imageBytes);
         if (!sniffedMime) {
           log.warn(
@@ -417,7 +432,10 @@ export async function runModerationAnalysis(
         }
 
         const dataUrl = `data:${sniffedMime};base64,${imageBytes.toString("base64")}`;
-        const part: RawImagePart = { type: "image_url", image_url: { url: dataUrl } };
+        const part: RawImagePart = {
+          type: "image_url",
+          image_url: { url: dataUrl },
+        };
 
         const existing = messageImageMap.get(att.message_id) ?? [];
         existing.push(part);
@@ -430,6 +448,8 @@ export async function runModerationAnalysis(
           },
           "Error base64 encoding attachment",
         );
+      } finally {
+        clearTimeout(timeoutId);
       }
     }),
   );
@@ -524,7 +544,10 @@ CRITICAL: "message_id" HARUS berupa STRING (dibungkus tanda kutip ganda). Jangan
 
   const buildMessageContent = (): string | ContentPart[] => {
     const correction = lastParseError
-      ? { error: lastParseError, preview: lastInvalidContent?.slice(0, 800) ?? "<empty>" }
+      ? {
+          error: lastParseError,
+          preview: lastInvalidContent?.slice(0, 800) ?? "<empty>",
+        }
       : undefined;
 
     const systemText = buildSystemPrompt(correction);
@@ -543,7 +566,10 @@ CRITICAL: "message_id" HARUS berupa STRING (dibungkus tanda kutip ganda). Jangan
 
     // Multimodal path: interleave text + images per message
     const parts: ContentPart[] = [
-      { type: "text", text: `${systemText}\n\n## Pesan yang Dianalisis (dengan lampiran gambar)\n` },
+      {
+        type: "text",
+        text: `${systemText}\n\n## Pesan yang Dianalisis (dengan lampiran gambar)\n`,
+      },
     ];
 
     for (const msg of targets) {
@@ -586,33 +612,7 @@ CRITICAL: "message_id" HARUS berupa STRING (dibungkus tanda kutip ganda). Jangan
           top_p: 0.95,
           max_tokens: 16384,
           response_format: {
-            type: "json_schema",
-            json_schema: {
-              name: "moderation",
-              strict: true,
-              schema: {
-                type: "object",
-                properties: {
-                  results: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        message_id: { type: "string" },
-                        status: { type: "string", enum: ["clean", "warn", "flagged"] },
-                        flags: { type: "array", items: { type: "string" } },
-                        score: { type: "number" },
-                        analysis: { type: "string" }
-                      },
-                      required: ["message_id", "status", "flags", "score", "analysis"],
-                      additionalProperties: false
-                    }
-                  }
-                },
-                required: ["results"],
-                additionalProperties: false
-              }
-            }
+            type: "json_object",
           },
           stream: false,
           chat_template_kwargs: { enable_thinking: false },
@@ -674,7 +674,7 @@ CRITICAL: "message_id" HARUS berupa STRING (dibungkus tanda kutip ganda). Jangan
     const errorMsg =
       parseError instanceof Error ? parseError.message : String(parseError);
     const content: string = lastInvalidContent;
-    
+
     log.error(
       {
         error: errorMsg,

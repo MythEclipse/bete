@@ -1,6 +1,6 @@
 import { config } from "../config.js";
 import { initializeDatabase } from "../database/drizzle.js";
-import { buildConversationPromptMessages } from "./conversationContext.js";
+import { buildConversationContext } from "./conversationContext.js";
 import { runModerationAnalysis } from "./llmModerationClient.js";
 import {
   getAttachmentsForMessages,
@@ -67,7 +67,7 @@ export default async function processAnalysisRequest({
       limit: config.AI_ANALYSIS_CONTEXT_MESSAGE_LIMIT,
     });
 
-    const promptMessages = buildConversationPromptMessages({
+    const contextLines = buildConversationContext({
       contextBefore,
       targets: messages,
       maxTokens: config.AI_ANALYSIS_MAX_CONTEXT_TOKENS,
@@ -80,7 +80,7 @@ export default async function processAnalysisRequest({
 
     const result = await runModerationAnalysis({
       targets: messages,
-      contextText: promptMessages.join("\n"),
+      contextText: contextLines.join("\n"),
       attachments,
     });
 
@@ -94,12 +94,19 @@ export default async function processAnalysisRequest({
         analysis: analysisResult.analysis,
         analyzedAt: Date.now(),
         error: null,
-      }
+      },
     }));
-    
-    const rows = await updateMessagesAIAnalysisBulk(updates);
 
-    return { ok: true, conversationKey, rows };
+    try {
+      const rows = await updateMessagesAIAnalysisBulk(updates);
+      return { ok: true, conversationKey, rows };
+    } catch (dbErr) {
+      // If bulk update fails, we log it but don't fail the worker completely
+      // so it can at least retry later without blowing up the circuit breaker if it was an isolated issue
+      throw new Error(
+        `Failed to update DB: ${dbErr instanceof Error ? dbErr.message : String(dbErr)}`,
+      );
+    }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : undefined;

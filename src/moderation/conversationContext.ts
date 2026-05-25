@@ -14,57 +14,52 @@ function formatTimestamp(ms: number): string {
 }
 
 /**
- * Estimates token count for a string (rough approximation: ~4 chars per token)
+ * Estimates token count for a string (pessimistic approximation for Indonesian slang & JSON overhead)
  */
-function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 4);
+export function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 3) + 15;
 }
 
 /**
- * Builds conversation prompt messages with context and targets
- * - Marks target messages with [target], prior context with [context]
- * - Uses edited_content when present, otherwise content
- * - Maintains chronological order
- * - Respects maxTokens budget, prioritizing targets and most recent context
+ * Formats a single message for context or target display
  */
-export function buildConversationPromptMessages(
+export function formatMessageForPrompt(
+  msg: MessageRecord,
+  label: "context" | "target",
+): string {
+  const content = msg.edited_content ?? msg.content;
+  const timestamp = formatTimestamp(msg.created_at);
+  return `[${label}] id=${msg.id} time=${timestamp} user=${msg.username}: ${content}`;
+}
+
+/**
+ * Builds conversation historical context without including targets.
+ * Calculates how much token budget targets use, and fills the rest with context.
+ */
+export function buildConversationContext(
   input: ConversationContextInput,
 ): string[] {
   const { contextBefore, targets, maxTokens } = input;
 
-  const formatMessage = (msg: MessageRecord, label: string): string => {
-    const content = msg.edited_content ?? msg.content;
-    const timestamp = formatTimestamp(msg.created_at);
-    return `[${label}] id=${msg.id} time=${timestamp} user=${msg.username}: ${content}`;
-  };
+  // Calculate tokens used by targets
+  let usedTokens = targets.reduce((sum, msg) => {
+    return sum + estimateTokens(formatMessageForPrompt(msg, "target"));
+  }, 0);
 
-  const targetEntries = targets.map((msg) => ({
-    msg,
-    label: "target" as const,
-    line: formatMessage(msg, "target"),
-  }));
+  const selectedContextLines: string[] = [];
 
-  let usedTokens = targetEntries.reduce(
-    (sum, entry) => sum + estimateTokens(entry.line),
-    0,
-  );
-
-  const selectedContextEntries: Array<{
-    msg: MessageRecord;
-    label: "context";
-    line: string;
-  }> = [];
+  // Go backwards through context, taking most recent first
   for (let i = contextBefore.length - 1; i >= 0; i--) {
     const msg = contextBefore[i];
-    const line = formatMessage(msg, "context");
+    const line = formatMessageForPrompt(msg, "context");
     const lineTokens = estimateTokens(line);
+
     if (usedTokens + lineTokens <= maxTokens) {
-      selectedContextEntries.push({ msg, label: "context", line });
+      // Unshift so oldest context is first in the array
+      selectedContextLines.unshift(line);
       usedTokens += lineTokens;
     }
   }
 
-  return [...selectedContextEntries, ...targetEntries]
-    .sort((a, b) => a.msg.created_at - b.msg.created_at)
-    .map((entry) => entry.line);
+  return selectedContextLines;
 }

@@ -4,6 +4,10 @@ import { Piscina } from "piscina";
 import { config } from "../config.js";
 import { createChildLogger } from "../logger.js";
 import {
+  estimateTokens,
+  formatMessageForPrompt,
+} from "./conversationContext.js";
+import {
   getMessageById,
   getPendingConversationKeys,
   getPendingMessagesByConversation,
@@ -88,10 +92,8 @@ export function pickBatchWithinBudget(
   let usedTokens = 0;
 
   for (const msg of messages) {
-    // Estimate tokens based on actual content length (conservative: 3 chars/token)
-    const content = msg.edited_content ?? msg.content;
-    const contentTokens = Math.ceil(content.length / 3);
-    const msgTokens = contentTokens + tokensPerMessage;
+    const formatted = formatMessageForPrompt(msg, "target");
+    const msgTokens = estimateTokens(formatted) + tokensPerMessage;
 
     if (usedTokens + msgTokens <= maxTokens) {
       batch.push(msg);
@@ -118,7 +120,8 @@ async function processBatch(
 ): Promise<void> {
   if (messages.length === 0) return;
   if (Date.now() < globalCooldownUntil) {
-    return; // Circuit breaker is open
+    // Should not normally hit here due to checks in scheduleConversationAnalysis, but just in case
+    return;
   }
 
   activeRequests++;
@@ -126,7 +129,10 @@ async function processBatch(
   const processingStartedAt = Date.now();
   conversationProcessing.set(conversationKey, processingStartedAt);
   try {
-    const result = (await workerPool.run({ conversationKey, messages })) as AnalysisWorkerResponse;
+    const result = (await workerPool.run({
+      conversationKey,
+      messages,
+    })) as AnalysisWorkerResponse;
 
     for (const row of result.rows) {
       getModerationBroadcaster()?.messageAnalyzed(row);
@@ -136,9 +142,11 @@ async function processBatch(
       consecutiveErrors++;
       if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
         globalCooldownUntil = Date.now() + 60000;
-        logger.warn("Global circuit breaker triggered due to consecutive errors");
+        logger.warn(
+          "Global circuit breaker triggered due to consecutive errors",
+        );
       }
-      
+
       lastError = result.error ?? "Analysis worker failed";
       conversationErrorCooldown.set(
         conversationKey,
@@ -201,7 +209,6 @@ async function processBatch(
   }
 }
 
-
 /**
  * Debounced analysis trigger for a conversation
  */
@@ -211,9 +218,20 @@ function scheduleConversationAnalysis(conversationKey: string): void {
     return;
   }
 
-  // Skip if in error cooldown
-  const cooldownUntil = conversationErrorCooldown.get(conversationKey);
-  if (cooldownUntil && Date.now() < cooldownUntil) {
+  // Check cooldowns
+  const convoCooldown = conversationErrorCooldown.get(conversationKey) || 0;
+  const activeCooldown = Math.max(convoCooldown, globalCooldownUntil);
+
+  if (activeCooldown && Date.now() < activeCooldown) {
+    // Instead of dropping, re-schedule for after cooldown if not already scheduled
+    if (!conversationDebounceTimers.has(conversationKey)) {
+      const remaining = activeCooldown - Date.now();
+      const timer = setTimeout(() => {
+        conversationDebounceTimers.delete(conversationKey);
+        scheduleConversationAnalysis(conversationKey);
+      }, remaining + 500); // 500ms buffer after cooldown
+      conversationDebounceTimers.set(conversationKey, timer);
+    }
     return;
   }
 
