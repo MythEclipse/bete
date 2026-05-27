@@ -137,5 +137,9 @@ export type ModerationWsEvent =
 export interface AnalysisQueueStatus {
   queuedConversations: number;
   activeRequests: number;
+  /** Number of single-message fallback calls currently awaiting the LLM. */
+  activeIndividualRequests: number;
+  /** Number of message IDs sitting in the dedup set (in-flight or about to start). */
+  individualInFlightCount: number;
   lastError: string | null;
 }

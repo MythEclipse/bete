@@ -3,14 +3,20 @@ import { fileURLToPath } from "node:url";
 import { Piscina } from "piscina";
 import { config } from "../config.js";
 import { createChildLogger } from "../logger.js";
+import { retryWithBackoff } from "../retry.js";
 import {
+  buildConversationContext,
   estimateTokens,
   formatMessageForPrompt,
 } from "./conversationContext.js";
+import { runModerationAnalysis } from "./llmModerationClient.js";
 import {
+  getAttachmentsForMessages,
+  getConversationContextBefore,
   getMessageById,
   getPendingConversationKeys,
   getPendingMessagesByConversation,
+  updateMessagesAIAnalysisBulk,
 } from "./messageStore.js";
 import type {
   AnalysisQueueStatus,
@@ -44,6 +50,21 @@ let lastError: string | null = null;
 let consecutiveErrors = 0;
 const MAX_CONSECUTIVE_ERRORS = 5;
 let globalCooldownUntil = 0;
+
+// ---------------------------------------------------------------------------
+// Individual fallback queue — runs PARALLEL to the batch pipeline.
+//
+// When a batch LLM call returns but some message IDs are absent from the
+// response (analysis_incomplete), those IDs are enqueued here.  Each message
+// is processed independently and concurrently: there is no serialisation
+// per-conversation, and a dedup Set prevents the same ID being in-flight twice.
+// ---------------------------------------------------------------------------
+
+/** IDs currently being processed one-by-one (in-flight or waiting to start). */
+const individualInFlight = new Set<string>();
+
+/** Counter for observability (mirrors activeRequests but for individual path). */
+let activeIndividualRequests = 0;
 
 function getAnalysisWorkerUrl(): URL {
   const candidates = [
@@ -114,6 +135,121 @@ function isConversationProcessingLocked(conversationKey: string): boolean {
 /**
  * Processes a batch of messages for a conversation
  */
+/**
+ * Processes a single message through the LLM moderation pipeline directly
+ * (no worker pool — avoids IPC overhead for a single-item call).  Called from
+ * the individual fallback queue; never from the batch path.
+ */
+async function processIndividualFallback(
+  message: MessageRecord,
+): Promise<void> {
+  const { id: messageId } = message;
+  activeIndividualRequests++;
+  try {
+    const contextBefore = await getConversationContextBefore({
+      channelId: message.channel_id,
+      threadId: message.thread_id,
+      beforeCreatedAt: message.created_at,
+      limit: config.AI_ANALYSIS_CONTEXT_MESSAGE_LIMIT,
+    });
+
+    const contextLines = buildConversationContext({
+      contextBefore,
+      targets: [message],
+      maxTokens: config.AI_ANALYSIS_MAX_CONTEXT_TOKENS,
+    });
+
+    const contextIds = contextBefore.map((m) => m.id);
+    const attachments = await getAttachmentsForMessages([
+      messageId,
+      ...contextIds,
+    ]);
+
+    const analysisResult = await retryWithBackoff(
+      () =>
+        runModerationAnalysis({
+          targets: [message],
+          contextText: contextLines.join("\n"),
+          attachments,
+        }),
+      {
+        retries: 2,
+        minTimeout: 2000,
+        maxTimeout: 15000,
+        logger,
+      },
+    );
+
+    const updates = analysisResult.results.map((r) => ({
+      messageId: r.messageId,
+      result: {
+        status: r.status,
+        flags: JSON.stringify(r.flags),
+        score: r.score,
+        raw: JSON.stringify(analysisResult.raw),
+        analysis: r.analysis,
+        analyzedAt: Date.now(),
+        error: null,
+      },
+    }));
+
+    const rows = await updateMessagesAIAnalysisBulk(updates);
+    for (const row of rows) {
+      getModerationBroadcaster()?.messageAnalyzed(row);
+    }
+
+    logger.info(
+      { messageId, status: analysisResult.results[0]?.status },
+      "Individual fallback analysis complete",
+    );
+  } catch (error) {
+    lastError = error instanceof Error ? error.message : String(error);
+    logger.error(
+      {
+        messageId,
+        error: lastError,
+        stack: error instanceof Error ? error.stack : undefined,
+      },
+      "Individual fallback analysis failed",
+    );
+  } finally {
+    activeIndividualRequests--;
+    individualInFlight.delete(messageId);
+  }
+}
+
+/**
+ * Fans out a list of message records to the individual fallback queue.
+ * Each message starts processing concurrently (fire-and-forget per message).
+ * De-duplicated by message ID so no double-processing even if called repeatedly.
+ */
+function enqueueIndividualFallbacks(messages: MessageRecord[]): void {
+  const newMessages = messages.filter((m) => !individualInFlight.has(m.id));
+  if (newMessages.length === 0) return;
+
+  logger.info(
+    {
+      count: newMessages.length,
+      messageIds: newMessages.map((m) => m.id),
+    },
+    "Enqueueing individual fallback analysis for batch-incomplete messages",
+  );
+
+  for (const msg of newMessages) {
+    individualInFlight.add(msg.id);
+    // Fire-and-forget: each message runs concurrently, errors are handled inside.
+    processIndividualFallback(msg).catch((err) => {
+      // Belt-and-suspenders: processIndividualFallback catches internally,
+      // but guard against any uncaught rejection bubbling here.
+      logger.error(
+        { messageId: msg.id, error: String(err) },
+        "Unexpected error in individual fallback promise",
+      );
+      individualInFlight.delete(msg.id);
+    });
+  }
+}
+
 async function processBatch(
   conversationKey: string,
   messages: MessageRecord[],
@@ -147,6 +283,18 @@ async function processBatch(
         );
       }
 
+      // Batch failed entirely — fall back all messages to individual queue
+      // so no message is permanently lost behind a cooldown.
+      logger.warn(
+        {
+          conversationKey,
+          messageCount: messages.length,
+          error: result.error,
+        },
+        "Batch failed entirely — routing all messages to individual fallback queue",
+      );
+      enqueueIndividualFallbacks(messages);
+
       lastError = result.error ?? "Analysis worker failed";
       conversationErrorCooldown.set(
         conversationKey,
@@ -168,6 +316,38 @@ async function processBatch(
       return;
     }
 
+    // Batch succeeded — but check for messages the LLM silently dropped.
+    // Rows with flag "analysis_incomplete" were produced by parseModerationResponse
+    // as synthetic errors; they must be re-processed individually.
+    const incompleteMessages = messages.filter((msg) => {
+      const row = result.rows.find((r) => r.id === msg.id);
+      if (!row) {
+        // The DB update row is missing entirely — treat as incomplete.
+        return true;
+      }
+      const flags: string[] = (() => {
+        try {
+          return JSON.parse(row.ai_moderation_flags ?? "[]") as string[];
+        } catch {
+          return [];
+        }
+      })();
+      return row.ai_status === "error" && flags.includes("analysis_incomplete");
+    });
+
+    if (incompleteMessages.length > 0) {
+      logger.warn(
+        {
+          conversationKey,
+          incompleteCount: incompleteMessages.length,
+          incompleteIds: incompleteMessages.map((m) => m.id),
+          totalBatchSize: messages.length,
+        },
+        "Batch returned incomplete results — fanning out to individual fallback queue",
+      );
+      enqueueIndividualFallbacks(incompleteMessages);
+    }
+
     consecutiveErrors = 0; // Reset circuit breaker
     conversationErrorCooldown.delete(conversationKey);
     shouldScheduleNext = true;
@@ -177,6 +357,13 @@ async function processBatch(
       globalCooldownUntil = Date.now() + 60000;
       logger.warn("Global circuit breaker triggered due to consecutive errors");
     }
+
+    // Unhandled exception — route everything to individual fallback.
+    logger.warn(
+      { conversationKey, messageCount: messages.length },
+      "Batch threw exception — routing all messages to individual fallback queue",
+    );
+    enqueueIndividualFallbacks(messages);
 
     lastError = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : undefined;
@@ -307,6 +494,8 @@ export function getAnalysisQueueStatus(): AnalysisQueueStatus {
   return {
     queuedConversations: conversationDebounceTimers.size,
     activeRequests,
+    activeIndividualRequests,
+    individualInFlightCount: individualInFlight.size,
     lastError,
   };
 }
