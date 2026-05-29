@@ -57,6 +57,21 @@ export const INDONESIAN_SLANG_LEXICON: Record<string, SlangLexiconEntry> = {
   lknt: { normalized: "laknat", note: "slang for 'laknat' (profanity)" },
   bngsat: { normalized: "bangsat", note: "slang for 'bangsat' (profanity)" },
   bgsat: { normalized: "bangsat", note: "slang for 'bangsat' (profanity)" },
+  // Sexual deviation / prohibited identity topics — normalize so badwords
+  // detector and LLM can recognise them.  These are NOT safeByDefault.
+  lgbt: { normalized: "LGBT", note: "sexual deviation / prohibited topic" },
+  lgbtq: { normalized: "LGBTQ", note: "sexual deviation / prohibited topic" },
+  lgbtqi: { normalized: "LGBTQI", note: "sexual deviation / prohibited topic" },
+  lgbtqa: { normalized: "LGBTQA", note: "sexual deviation / prohibited topic" },
+  furry: { normalized: "furry", note: "sexual deviation / prohibited topic" },
+  furries: { normalized: "furry", note: "sexual deviation / prohibited topic" },
+  transfurry: { normalized: "transfurry", note: "sexual deviation / prohibited topic" },
+  protogen: { normalized: "protogen", note: "furry subculture / prohibited topic" },
+  therian: { normalized: "therian", note: "therianthropy / prohibited topic" },
+  otherkin: { normalized: "otherkin", note: "otherkin identity / prohibited topic" },
+  // Additional common abbreviations
+  lgb: { normalized: "LGBT", note: "abbreviation for LGBT" },
+  lgbti: { normalized: "LGBTI", note: "sexual deviation / prohibited topic" },
   woy: {
     normalized: "woy",
     note: "casual Indonesian interjection/greeting; not SARA/hate/harassment by default",
