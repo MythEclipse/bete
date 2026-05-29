@@ -19,35 +19,53 @@ const parseStringList = (value?: string | null): string[] => {
   }
 };
 
+/** Derive severity from legacy messages that lack structured AI fields. */
+function deriveSeverity(msg: MessageRecord): string {
+  if (msg.ai_severity) return msg.ai_severity;
+  const score = msg.ai_confidence ?? msg.ai_moderation_score ?? 0;
+  if (msg.ai_status === "flagged") return score >= 0.9 ? "critical" : score >= 0.7 ? "high" : "medium";
+  if (msg.ai_status === "warn") return score >= 0.6 ? "medium" : "low";
+  return "none";
+}
+
+/** Derive recommended action from legacy messages that lack structured AI fields. */
+function deriveRecommendedAction(msg: MessageRecord): string {
+  if (msg.ai_recommended_action) return msg.ai_recommended_action;
+  const severity = deriveSeverity(msg);
+  if (msg.ai_status === "flagged" && (severity === "critical" || severity === "high")) return "delete";
+  if (msg.ai_status === "flagged") return "review";
+  if (msg.ai_status === "warn") return "warn";
+  return "none";
+}
+
 function isAutoDeleteEligible(message: MessageRecord): boolean {
   if (message.ai_status !== "flagged" && message.ai_status !== "warn") return false;
 
   const confidence = message.ai_confidence ?? message.ai_moderation_score ?? 0;
   if (confidence < config.AUTO_DELETE_MIN_CONFIDENCE) {
-    logger.debug(
+    logger.info(
       { messageId: message.id, confidence, threshold: config.AUTO_DELETE_MIN_CONFIDENCE },
       "Auto-delete skipped: confidence below threshold",
     );
     return false;
   }
 
+  const severity = deriveSeverity(message);
   const allowedSeverities = (config.AUTO_DELETE_ALLOWED_SEVERITIES || "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  if (allowedSeverities.length > 0 && message.ai_severity) {
-    if (!allowedSeverities.includes(message.ai_severity)) {
-      logger.debug(
-        { messageId: message.id, severity: message.ai_severity, allowed: allowedSeverities },
-        "Auto-delete skipped: severity not in allowed list",
-      );
-      return false;
-    }
+  if (allowedSeverities.length > 0 && !allowedSeverities.includes(severity)) {
+    logger.info(
+      { messageId: message.id, severity, allowed: allowedSeverities },
+      "Auto-delete skipped: severity not in allowed list",
+    );
+    return false;
   }
 
-  const recommendedAction = message.ai_recommended_action ?? "";
+  const recommendedAction = deriveRecommendedAction(message);
   if (recommendedAction !== "delete" && recommendedAction !== "escalate") {
-    logger.debug(
+    logger.info(
       { messageId: message.id, recommendedAction },
       "Auto-delete skipped: recommended action is not delete/escalate",
     );
@@ -59,7 +77,7 @@ function isAutoDeleteEligible(message: MessageRecord): boolean {
     const messageCategories = parseStringList(message.ai_categories ?? message.ai_moderation_flags);
     const hasAllowedCategory = messageCategories.some((cat) => allowedCategories.includes(cat));
     if (!hasAllowedCategory) {
-      logger.debug(
+      logger.info(
         { messageId: message.id, categories: messageCategories, allowed: allowedCategories },
         "Auto-delete skipped: no allowed categories match",
       );
@@ -71,14 +89,14 @@ function isAutoDeleteEligible(message: MessageRecord): boolean {
   if (excludedChannels.length > 0) {
     const channelId = message.thread_id ?? message.channel_id;
     if (excludedChannels.includes(channelId)) {
-      logger.debug({ messageId: message.id, channelId }, "Auto-delete skipped: channel excluded");
+      logger.info({ messageId: message.id, channelId }, "Auto-delete skipped: channel excluded");
       return false;
     }
   }
 
   const excludedUsers = parseStringList(config.AUTO_DELETE_EXCLUDED_USER_IDS);
   if (excludedUsers.length > 0 && excludedUsers.includes(message.user_id)) {
-    logger.debug({ messageId: message.id, userId: message.user_id }, "Auto-delete skipped: user excluded");
+    logger.info({ messageId: message.id, userId: message.user_id }, "Auto-delete skipped: user excluded");
     return false;
   }
 
