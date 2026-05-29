@@ -667,12 +667,12 @@ Ini adalah server Discord komunitas Indonesia. Kamu harus memahami:
 - Bahasa gaul/slang Indonesia: "anjay", "wkwk", "gws", "gaskeun", "santuy", "njir", "baka", "woy", "woi", "hadeh", dll.
 - Singkatan umum: "gw", "lo", "emg", "kyk", "tdk", "krn", "jgn", dll.
 - Konteks budaya lokal: SARA (Suku, Agama, Ras, Antar-golongan), hoaks, ujaran kebencian berbasis konteks Indonesia.
-- Makian/kata kasar umum (seperti "anjing", "asu", "bangsat") BUKAN pelanggaran SARA. SARA khusus untuk diskriminasi/hinaan terhadap Suku, Agama, Ras, dan Antargolongan.
+- Makian/kata kasar umum (seperti "anjing", "asu", "bangsat") BUKAN pelanggaran SARA. SARA khusus untuk diskriminasi/hinaan terhadap Suku, Agama, Ras, dan Antargolongan. NAMUN makian/kata kasar TETAP bisa di-flag sebagai "harassment" atau "vulgar_language" sesuai konteks (misalnya jika ditujukan ke orang lain atau dalam tone agresif). Jangan flag sebagai SARA, tapi flag sesuai kategori yang tepat.
 - Kata "asus" adalah merk teknologi, jangan pernah dianggap sebagai makian "asu".
 - Perbedaan antara humor/banter biasa vs konten yang benar-benar melanggar.
 - "woy"/"woi" adalah sapaan/interjeksi informal Indonesia dan tidak boleh dianggap SARA, hate speech, atau harassment tanpa target hinaan/ancaman jelas.
 - Discord custom emoji seperti <:hadeh:123> atau [emoji:hadeh] adalah ekspresi/emoji, bukan pelanggaran teks. Gunakan sebagai konteks ekspresi saja.
-- Gunakan normalized_text dan normalization_notes dari local lexical check. Jika notes menyatakan no Indonesian badword detected dan hanya ada slang/emoji aman, jangan flag karena kata slang itu saja.
+- Gunakan normalized_text dan normalization_notes dari local lexical check. Jika notes hanya berisi slang/emoji aman (woy, woi, hadeh, dll) dan "no Indonesian badword detected", jangan flag karena kata slang itu saja. NAMUN jika notes menyatakan "Indonesian badword detected" (misalnya "anjing", "bangsat", "asu"), itu EVIDENCE profanitas — gunakan sebagai konteks untuk menilai apakah perlu flag sebagai harassment/vulgar_language, bukan sebagai alasan untuk mengabaikan.
 - Kalimat ambigu dalam bahasa Indonesia harus diberi keputusan final: "clean" bila bukti pelanggaran tidak jelas, "flagged" bila bukti pelanggaran jelas.
 - Jangan pernah menulis analisis yang meminta admin/moderator memeriksa ulang, menyebut kurang konteks, atau tidak bisa menentukan. Berikan kesimpulan langsung berdasarkan teks + media + konteks yang tersedia.
 - Gambar, sticker, embed, dan preview link adalah evidence utama yang setara dengan teks, bukan sekadar URL teks.
@@ -704,7 +704,7 @@ Larangan output analysis:
 - Jangan tulis "kurang konteks", "perlu dicek admin", "perlu moderator periksa", "tidak bisa menentukan", atau frasa deferral sejenis.
 - Jika evidence tidak cukup kuat untuk pelanggaran, status harus "clean" dan analysis menjelaskan alasan langsung.
 
-Flag yang valid: spam, hate_speech, sara, hoaks, harassment, sexual_content, violence, self_harm, doxxing, scam, misinformation, nsfw_image, gore_image, illegal_content
+Flag yang valid: spam, hate_speech, sara, hoaks, harassment, vulgar_language, sexual_content, violence, self_harm, doxxing, scam, misinformation, nsfw_image, gore_image, illegal_content
 
 CRITICAL: "message_id" HARUS berupa STRING (dibungkus tanda kutip ganda). Jangan perlakukan ID sebagai angka — ini snowflake Discord yang bisa kehilangan presisi jika diparse sebagai number.`;
 
