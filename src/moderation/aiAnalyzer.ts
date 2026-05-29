@@ -40,7 +40,7 @@ function getModerationBroadcaster(): ModerationBroadcaster | undefined {
 }
 
 function scheduleAutoDelete(row: MessageRecord): void {
-  if (row.ai_status !== "flagged") return;
+  if (row.ai_status !== "flagged" && row.ai_status !== "warn") return;
   const run = () => {
     attemptAutoDeleteFlaggedMessage(moderationClient, row).catch((error) => {
       logger.error(

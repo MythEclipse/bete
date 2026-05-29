@@ -7,6 +7,11 @@ vi.mock("../../src/config", () => ({
     AUTO_DELETE_FLAGGED_ENABLED: true,
     AUTO_DELETE_FLAGGED_DRY_RUN: false,
     AUTO_DELETE_FLAGGED_DELAY_MS: 0,
+    AUTO_DELETE_MIN_CONFIDENCE: 0,
+    AUTO_DELETE_ALLOWED_SEVERITIES: "",
+    AUTO_DELETE_ALLOWED_CATEGORIES: "",
+    AUTO_DELETE_EXCLUDED_CHANNEL_IDS: "",
+    AUTO_DELETE_EXCLUDED_USER_IDS: "",
   },
 }));
 
@@ -36,6 +41,7 @@ function createMessage(overrides: Partial<MessageRecord> = {}): MessageRecord {
     type: "text",
     metadata: null,
     ai_status: "flagged",
+    ai_recommended_action: "delete",
     ...overrides,
   };
 }
@@ -83,7 +89,7 @@ describe("attemptAutoDeleteFlaggedMessage", () => {
       createMessage({ ai_status: "clean" }),
     );
 
-    expect(result.reason).toBe("not_flagged");
+    expect(result.reason).toBe("not_flagged_or_warn");
     expect(deleteMock).not.toHaveBeenCalled();
   });
 
@@ -104,7 +110,21 @@ describe("attemptAutoDeleteFlaggedMessage", () => {
     });
     const result = await attemptAutoDeleteFlaggedMessage(
       client as any,
-      createMessage(),
+      createMessage(), // defaults to flagged
+    );
+
+    expect(result).toEqual({ deleted: true, skipped: false, reason: "deleted" });
+    expect(fetchMessageMock).toHaveBeenCalledWith("m1");
+    expect(deleteMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("deletes when message is warn and permission exists", async () => {
+    const { client, fetchMessageMock, deleteMock } = createClient({
+      canManageMessages: true,
+    });
+    const result = await attemptAutoDeleteFlaggedMessage(
+      client as any,
+      createMessage({ ai_status: "warn" }),
     );
 
     expect(result).toEqual({ deleted: true, skipped: false, reason: "deleted" });

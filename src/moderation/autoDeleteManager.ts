@@ -20,7 +20,7 @@ const parseStringList = (value?: string | null): string[] => {
 };
 
 function isAutoDeleteEligible(message: MessageRecord): boolean {
-  if (message.ai_status !== "flagged") return false;
+  if (message.ai_status !== "flagged" && message.ai_status !== "warn") return false;
 
   const confidence = message.ai_confidence ?? message.ai_moderation_score ?? 0;
   if (confidence < config.AUTO_DELETE_MIN_CONFIDENCE) {
@@ -31,7 +31,7 @@ function isAutoDeleteEligible(message: MessageRecord): boolean {
     return false;
   }
 
-  const allowedSeverities = config.AUTO_DELETE_ALLOWED_SEVERITIES
+  const allowedSeverities = (config.AUTO_DELETE_ALLOWED_SEVERITIES || "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
@@ -159,8 +159,8 @@ export async function attemptAutoDeleteFlaggedMessage(
     return { deleted: false, skipped: true, reason: "disabled" };
   }
 
-  if (message.ai_status !== "flagged") {
-    const result = { deleted: false, skipped: true, reason: "not_flagged" } as AutoDeleteResult;
+  if (message.ai_status !== "flagged" && message.ai_status !== "warn") {
+    const result = { deleted: false, skipped: true, reason: "not_flagged_or_warn" } as AutoDeleteResult;
     await logAutoDeleteAttempt(message, result);
     return result;
   }
