@@ -58,20 +58,88 @@ export function detectIndonesianBadwords(text: string): string[] {
     const result = badwords.analyze?.(text);
     if (Array.isArray(result?.badwords)) {
       let hits = Array.from(new Set(result.badwords.map((word) => word.toLowerCase())));
-      
+
       const lowerText = text.toLowerCase();
-      hits = hits.filter(hit => {
-        if (hit === "asu") {
-          const words = lowerText.match(/[\p{L}\p{N}_]+/gu) || [];
-          return words.some(w => 
-            w.includes("asu") && 
-            !["asus", "masuk", "termasuk", "dimasukkan", "memasukkan", "kasur", "asumsi", "asuransi", "asupan", "pasukan", "pasundan"].includes(w)
-          );
+
+      // -----------------------------------------------------------------------
+      // False-positive filters — exclude badword hits that appear only as
+      // substrings of longer innocent words.  Each filter checks whether the
+      // hit exists as a standalone word OR as part of a word that is NOT in
+      // the whitelist.
+      // -----------------------------------------------------------------------
+      const words = lowerText.match(/[\p{L}\p{N}_]+/gu) || [];
+
+      /** Returns true if the given hit appears in the text as a standalone word
+       *  or inside a word that is NOT in the whitelist. */
+      const isRealHit = (hit: string, whitelist: string[]): boolean => {
+        for (const w of words) {
+          if (w.includes(hit)) {
+            // If the word IS an exact match, it's definitely a real hit.
+            if (w === hit) return true;
+            // If it's inside a longer word, check the whitelist.
+            if (!whitelist.includes(w)) return true;
+          }
         }
-        return true;
+        return false;
+      };
+
+      hits = hits.filter((hit) => {
+        switch (hit) {
+          case "asu":
+            return isRealHit(hit, [
+              "asus", "masuk", "termasuk", "dimasukkan", "memasukkan",
+              "kasur", "asumsi", "asuransi", "asupan", "pasukan", "pasundan",
+            ]);
+          case "goblok":
+            return isRealHit(hit, [
+              "goblok", // standalone is always flagged
+            ]);
+          case "kontol":
+            return isRealHit(hit, [
+              "kontol", // standalone is always flagged
+            ]);
+          case "memek":
+            return isRealHit(hit, [
+              "memek", // standalone is always flagged
+            ]);
+          case "tolol":
+            return isRealHit(hit, [
+              "tolol", // standalone is always flagged
+            ]);
+          case "beg":
+            // Short substring — only flag if it appears as a standalone word
+            // or in a known profanity context, not inside "bego" variants.
+            return words.some(w => w === "beg" || w === "bgo" || w === "bgoo");
+          default:
+            return true;
+        }
       });
 
-      return hits;
+      // -----------------------------------------------------------------------
+      // Secondary detection: catch slang/vowelless forms the npm package misses.
+      // These are words that appear standalone (not inside a longer word) after
+      // normalization has already run.
+      // -----------------------------------------------------------------------
+      const SLANG_BADWORDS = [
+        "anjing", "bangsat", "brengsek", "bajingan", "kontol", "memek",
+        "tai", "goblok", "tolol", "bego", "sialan", "jancuk", "kampret",
+        "pepek", "jembut", "ngentot", "ngewe", "coli", "celaka", "laknat",
+        "pantek", "entod", "ndasmu", "ndas", "piyo",
+      ];
+
+      for (const slang of SLANG_BADWORDS) {
+        if (hits.includes(slang)) continue;
+
+        const standalonePattern = new RegExp(
+          `(?:^|\\s|[^\\p{L}])${slang}(?:$|\\s|[^\\p{L}])`,
+          "iu",
+        );
+        if (standalonePattern.test(lowerText)) {
+          hits.push(slang);
+        }
+      }
+
+      return Array.from(new Set(hits));
     }
   } catch {
     // Keep moderation pipeline resilient if dependency changes shape.

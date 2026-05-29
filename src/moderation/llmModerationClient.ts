@@ -673,10 +673,15 @@ Ini adalah server Discord komunitas Indonesia. Kamu harus memahami:
 - "woy"/"woi" adalah sapaan/interjeksi informal Indonesia dan tidak boleh dianggap SARA, hate speech, atau harassment tanpa target hinaan/ancaman jelas.
 - Discord custom emoji seperti <:hadeh:123> atau [emoji:hadeh] adalah ekspresi/emoji, bukan pelanggaran teks. Gunakan sebagai konteks ekspresi saja.
 - Gunakan normalized_text dan normalization_notes dari local lexical check. Jika notes hanya berisi slang/emoji aman (woy, woi, hadeh, dll) dan "no Indonesian badword detected", jangan flag karena kata slang itu saja. NAMUN jika notes menyatakan "Indonesian badword detected" (misalnya "anjing", "bangsat", "asu"), itu EVIDENCE profanitas — gunakan sebagai konteks untuk menilai apakah perlu flag sebagai harassment/vulgar_language, bukan sebagai alasan untuk mengabaikan.
-- Konten penyimpangan seksual (LGBT, LGBTQ, furry, transfurry, therian, otherkin, protogen) adalah pelanggaran server. Jika ada promosi, dukungan, atau identitas terkait topik tersebut, flag sebagai "sexual_deviation". Percakapan netral/sementara tentang topik ini juga tetap di-flag — server tidak mengizinkan topik tersebut sama sekali.
+- Topik seksual/identitas yang dibatasi server: LGBT/LGBTQ, furry/transfurry, therian, otherkin, protogen, yiff/fursona/fursuit, dan istilah terkait. Jika pesan mempromosikan, mendukung, mengajak, menyatakan identitas/roleplay, membagikan media, atau menjadikan topik ini sebagai pembahasan utama, flag sebagai "sexual_deviation". Jika pesan hanya mengecam/menolak topik tersebut tanpa hinaan ke orang/kelompok, status bisa "clean" atau "warn" sesuai tone. Jangan gunakan kebijakan ini untuk membenarkan doxxing, ancaman, atau penghinaan personal; ancaman/hinaan tetap flag sebagai harassment/hate_speech juga.
 - Kalimat ambigu dalam bahasa Indonesia harus diberi keputusan final: "clean" bila bukti pelanggaran tidak jelas, "flagged" bila bukti pelanggaran jelas.
 - Jangan pernah menulis analisis yang meminta admin/moderator memeriksa ulang, menyebut kurang konteks, atau tidak bisa menentukan. Berikan kesimpulan langsung berdasarkan teks + media + konteks yang tersedia.
 - Gambar, sticker, embed, dan preview link adalah evidence utama yang setara dengan teks, bukan sekadar URL teks.
+- Pornografi/NSFW, hentai, bokep, ajakan seksual, roleplay seksual, atau istilah seksual eksplisit harus di-flag sebagai "sexual_content"; jika melibatkan anak/di bawah umur/loli/shota/CP/pedofil, flag sebagai "child_safety" dan "illegal_content".
+- Judi/slot/togel/casino/parlay/maxwin/RTP/deposit/withdraw dalam konteks promosi atau ajakan harus di-flag sebagai "gambling" dan bila spam/scam juga tambahkan "spam" atau "scam".
+- Narkoba/obat terlarang/ganja/sabu/kokain/ekstasi dalam konteks jual beli, promosi, atau ajakan penggunaan harus di-flag sebagai "drugs".
+- Ancaman kekerasan, ajakan bunuh diri, self-harm, doxxing, scam finansial/crypto/phishing, dan spam self-promo harus diprioritaskan walau teksnya bercampur slang bercanda.
+- Istilah agama/suku/ras harus dinilai hati-hati: penyebutan netral/ibadah/edukasi = clean; hinaan, generalisasi negatif, provokasi, atau ajakan diskriminatif = flag "sara", "hate_speech", atau "religious_insult" sesuai konteks.
 ${imageInstructions}
 ## Konteks Percakapan
 ${contextText}
@@ -705,7 +710,7 @@ Larangan output analysis:
 - Jangan tulis "kurang konteks", "perlu dicek admin", "perlu moderator periksa", "tidak bisa menentukan", atau frasa deferral sejenis.
 - Jika evidence tidak cukup kuat untuk pelanggaran, status harus "clean" dan analysis menjelaskan alasan langsung.
 
-Flag yang valid: spam, hate_speech, sara, hoaks, harassment, vulgar_language, sexual_content, violence, self_harm, doxxing, scam, misinformation, nsfw_image, gore_image, illegal_content
+Flag yang valid: spam, hate_speech, sara, hoaks, harassment, vulgar_language, sexual_content, sexual_deviation, violence, self_harm, doxxing, scam, misinformation, nsfw_image, gore_image, illegal_content, gambling, drugs, child_safety, financial_scam, religious_insult, self_promo
 
 CRITICAL: "message_id" HARUS berupa STRING (dibungkus tanda kutip ganda). Jangan perlakukan ID sebagai angka — ini snowflake Discord yang bisa kehilangan presisi jika diparse sebagai number.`;
 
