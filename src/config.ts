@@ -124,7 +124,7 @@ const configSchema = z
       .string()
       .optional()
       .transform((v) => v === "true")
-      .default(true),
+      .default(false),
     DATABASE_TYPE: z.enum(["sqlite", "postgres"]).default("sqlite"),
     DATABASE_URL: z.string().optional(),
     POSTGRES_HOST: z.string().default("localhost"),
