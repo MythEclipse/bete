@@ -4,6 +4,7 @@ import { z } from "zod";
 import { config } from "../config.js";
 import { createChildLogger } from "../logger.js";
 import { retryWithBackoff } from "../retry.js";
+import { extractMessageMediaEvidence } from "./messageMetadata.js";
 import type {
   AnalysisResult,
   AttachmentRecord,
@@ -24,6 +25,13 @@ const ModerationResponseSchema = z.object({
 });
 
 const log = createChildLogger("llmModerationClient");
+const DEFERRAL_ANALYSIS_PATTERN =
+  /kurang konteks|kekurangan konteks|perlu (dicek|diperiksa|ditinjau).*(admin|moderator)|admin perlu|moderator perlu|tidak bisa menentukan|tidak dapat menentukan|cannot determine|insufficient context/i;
+
+function hasDeferralAnalysis(analysis: string): boolean {
+  return DEFERRAL_ANALYSIS_PATTERN.test(analysis);
+}
+
 const openai = new OpenAI({
   apiKey: config.AI_LLM_API_KEY,
   baseURL: config.AI_LLM_BASE_URL,
@@ -86,18 +94,6 @@ const openai = new OpenAI({
     }
   },
 });
-
-interface RawModerationResult {
-  message_id: string;
-  status: string;
-  flags: unknown;
-  score: number;
-  analysis: string;
-}
-
-interface RawModerationResponse {
-  results: RawModerationResult[];
-}
 
 /**
  * Helper to extract JSON from a potentially conversational or markdown-wrapped string.
@@ -213,6 +209,12 @@ export function parseModerationResponse(
     }
 
     foundIds.add(finalId);
+
+    if (hasDeferralAnalysis(analysis)) {
+      throw new Error(
+        `Deferral analysis is not allowed for message ${finalId}; return a direct moderation decision`,
+      );
+    }
 
     return {
       messageId: finalId,
@@ -357,7 +359,8 @@ export async function runModerationAnalysis(
 
   // Build a lookup: message_id → list of resolved base64 image parts
   type RawImagePart = { type: "image_url"; image_url: { url: string } };
-  type MessageImageMap = Map<string, RawImagePart[]>;
+  type MessageImagePart = RawImagePart & { sourceLabel: string };
+  type MessageImageMap = Map<string, MessageImagePart[]>;
 
   // Resolve and download image attachments, grouped by message_id.
   // Only images whose message_id appears in the full attachment list are kept;
@@ -447,9 +450,10 @@ export async function runModerationAnalysis(
         }
 
         const dataUrl = `data:${sniffedMime};base64,${imageBytes.toString("base64")}`;
-        const part: RawImagePart = {
+        const part: MessageImagePart = {
           type: "image_url",
           image_url: { url: dataUrl },
+          sourceLabel: `[gambar di atas adalah attachment ${att.filename} dari pesan id=${att.message_id}]`,
         };
 
         const existing = messageImageMap.get(att.message_id) ?? [];
@@ -488,9 +492,10 @@ export async function runModerationAnalysis(
           if (result.type === "image" && result.data && result.mimeType) {
             // Append as an image part
             const dataUrl = `data:${result.mimeType};base64,${result.data.toString("base64")}`;
-            const part: RawImagePart = {
+            const part: MessageImagePart = {
               type: "image_url",
               image_url: { url: dataUrl },
+              sourceLabel: `[gambar di atas berasal dari link ${url} pada pesan id=${msg.id}]`,
             };
             const existing = messageImageMap.get(msg.id) ?? [];
             existing.push(part);
@@ -509,6 +514,63 @@ export async function runModerationAnalysis(
       if (webTexts.length > 0) {
         messageWebTextMap.set(msg.id, webTexts);
       }
+    }),
+  );
+
+  const mediaImageCandidates = targets.flatMap((msg) => {
+    const evidence = extractMessageMediaEvidence(msg.metadata);
+    return [
+      ...evidence.stickers
+        .filter((sticker) => sticker.url)
+        .map((sticker) => ({
+          messageId: msg.id,
+          url: sticker.url,
+          label: `[gambar di atas adalah sticker "${sticker.name}" dari pesan id=${msg.id}]`,
+        })),
+      ...evidence.embeds.flatMap((embed) =>
+        [
+          embed.image
+            ? {
+                messageId: msg.id,
+                url: embed.image,
+                label: `[gambar di atas berasal dari embed image pada pesan id=${msg.id}]`,
+              }
+            : null,
+          embed.thumbnail
+            ? {
+                messageId: msg.id,
+                url: embed.thumbnail,
+                label: `[gambar di atas berasal dari embed thumbnail pada pesan id=${msg.id}]`,
+              }
+            : null,
+        ].filter(
+          (candidate): candidate is { messageId: string; url: string; label: string } =>
+            candidate !== null,
+        ),
+      ),
+    ];
+  });
+
+  const remainingImageSlots = Math.max(
+    0,
+    8 - Array.from(messageImageMap.values()).reduce((sum, imgs) => sum + imgs.length, 0),
+  );
+
+  await Promise.all(
+    mediaImageCandidates.slice(0, remainingImageSlots).map(async (candidate) => {
+      const result = await fetchUrlSafely(candidate.url);
+      if (result.type !== "image" || !result.data || !result.mimeType) return;
+
+      const part: MessageImagePart = {
+        type: "image_url",
+        image_url: {
+          url: `data:${result.mimeType};base64,${result.data.toString("base64")}`,
+        },
+        sourceLabel: candidate.label,
+      };
+      const existing = messageImageMap.get(candidate.messageId) ?? [];
+      existing.push(part);
+      messageImageMap.set(candidate.messageId, existing);
     }),
   );
 
@@ -533,11 +595,11 @@ export async function runModerationAnalysis(
   }): string => {
     const imageInstructions = hasImages
       ? `
-## Instruksi Analisis Gambar
-Beberapa pesan menyertakan lampiran gambar. Setiap gambar muncul TEPAT SETELAH baris teks pesan yang memilikinya.
-Gambar dan teks pesan harus dianalisis sebagai SATU KESATUAN — evaluasilah konten teks DAN gambar secara bersamaan untuk membentuk kesimpulan final.
-Jangan pisahkan penilaian gambar dari konteks teks pesannya.
-Jika gambar mengandung teks (meme, screenshot), baca dan pertimbangkan teks tersebut sebagai bagian dari konten pesan.
+## Instruksi Analisis Gambar/Sticker/Embed
+Beberapa pesan menyertakan gambar, sticker, preview link, atau embed. Setiap media muncul TEPAT SETELAH baris teks pesan yang memilikinya.
+Media dan teks pesan harus dianalisis sebagai SATU KESATUAN — evaluasilah konten teks, gambar, sticker, dan preview link secara bersamaan untuk membentuk kesimpulan final.
+Jangan pisahkan penilaian media dari konteks teks pesannya.
+Jika gambar/sticker/preview mengandung teks (meme, screenshot), baca dan pertimbangkan teks tersebut sebagai bagian dari konten pesan.
 `
       : "";
 
@@ -550,7 +612,9 @@ Ini adalah server Discord komunitas Indonesia. Kamu harus memahami:
 - Singkatan umum: "gw", "lo", "emg", "kyk", "tdk", "krn", "jgn", dll.
 - Konteks budaya lokal: SARA (Suku, Agama, Ras, Antar-golongan), hoaks, ujaran kebencian berbasis konteks Indonesia.
 - Perbedaan antara humor/banter biasa vs konten yang benar-benar melanggar.
-- Kalimat ambigu dalam bahasa Indonesia harus ditafsirkan dengan charitable intent kecuali ada indikator kuat sebaliknya.
+- Kalimat ambigu dalam bahasa Indonesia harus diberi keputusan final: "clean" bila bukti pelanggaran tidak jelas, "flagged" bila bukti pelanggaran jelas.
+- Jangan pernah menulis analisis yang meminta admin/moderator memeriksa ulang, menyebut kurang konteks, atau tidak bisa menentukan. Berikan kesimpulan langsung berdasarkan teks + media + konteks yang tersedia.
+- Gambar, sticker, embed, dan preview link adalah evidence utama yang setara dengan teks, bukan sekadar URL teks.
 ${imageInstructions}
 ## Konteks Percakapan
 ${contextText}
@@ -571,9 +635,13 @@ Struktur wajib:
 }
 
 Kriteria status:
-- "clean": tidak ada pelanggaran yang terdeteksi
-- "warn": konten berpotensi melanggar atau memerlukan perhatian moderator
+- "clean": tidak ada pelanggaran yang terdeteksi, atau kasus masih ambigu setelah semua evidence dianalisis
+- "warn": risiko ringan yang konkret terdeteksi, misalnya spam borderline atau harassment ringan; BUKAN untuk kurang konteks/perlu admin cek
 - "flagged": pelanggaran jelas terdeteksi
+
+Larangan output analysis:
+- Jangan tulis "kurang konteks", "perlu dicek admin", "perlu moderator periksa", "tidak bisa menentukan", atau frasa deferral sejenis.
+- Jika evidence tidak cukup kuat untuk pelanggaran, status harus "clean" dan analysis menjelaskan alasan langsung.
 
 Flag yang valid: spam, hate_speech, sara, hoaks, harassment, sexual_content, violence, self_harm, doxxing, scam, misinformation, nsfw_image, gore_image, illegal_content
 
@@ -618,7 +686,20 @@ CRITICAL: "message_id" HARUS berupa STRING (dibungkus tanda kutip ganda). Jangan
           const webTexts = messageWebTextMap.get(msg.id) ?? [];
           const webContext =
             webTexts.length > 0 ? `\n${webTexts.join("\n")}` : "";
-          return `[target] id=${msg.id} user=${msg.username}: ${content}${webContext}`;
+          const mediaEvidence = extractMessageMediaEvidence(msg.metadata);
+          const mediaContext = [
+            mediaEvidence.stickers.length > 0
+              ? `[sticker evidence: ${mediaEvidence.stickers.map((s) => `${s.name} (${s.url})`).join(" | ")}]`
+              : null,
+            mediaEvidence.embeds.length > 0
+              ? `[embed evidence: ${mediaEvidence.embeds
+                  .map((e) => [e.title, e.description, e.url, e.image, e.thumbnail].filter(Boolean).join(" | "))
+                  .join(" || ")}]`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" ");
+          return `[target] id=${msg.id} user=${msg.username}: ${content}${mediaContext ? ` ${mediaContext}` : ""}${webContext}`;
         })
         .join("\n");
 
@@ -638,21 +719,32 @@ CRITICAL: "message_id" HARUS berupa STRING (dibungkus tanda kutip ganda). Jangan
       const webTexts = messageWebTextMap.get(msg.id) ?? [];
       const webContext = webTexts.length > 0 ? `\n${webTexts.join("\n")}` : "";
 
-      const msgText = `[target] id=${msg.id} user=${msg.username}: ${content}${webContext}`;
+      const mediaEvidence = extractMessageMediaEvidence(msg.metadata);
+      const mediaContext = [
+        mediaEvidence.stickers.length > 0
+          ? `[sticker evidence: ${mediaEvidence.stickers.map((s) => `${s.name} (${s.url})`).join(" | ")}]`
+          : null,
+        mediaEvidence.embeds.length > 0
+          ? `[embed evidence: ${mediaEvidence.embeds
+              .map((e) => [e.title, e.description, e.url, e.image, e.thumbnail].filter(Boolean).join(" | "))
+              .join(" || ")}]`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" ");
+      const msgText = `[target] id=${msg.id} user=${msg.username}: ${content}${mediaContext ? ` ${mediaContext}` : ""}${webContext}`;
       parts.push({ type: "text", text: msgText });
 
       // Immediately follow the message text with its images
       const imgs = messageImageMap.get(msg.id);
       if (imgs && imgs.length > 0) {
         for (const img of imgs) {
-          parts.push(img);
+          parts.push({ type: "image_url", image_url: img.image_url });
+          parts.push({
+            type: "text",
+            text: img.sourceLabel,
+          });
         }
-        // Anchor label after the image(s) so the model's attention window
-        // links this image block back to the message ID above it
-        parts.push({
-          type: "text",
-          text: `[gambar di atas adalah lampiran dari pesan id=${msg.id}]`,
-        });
       }
     }
 

@@ -11,35 +11,47 @@ export interface MessageLocation {
   channelName: string | null;
 }
 
-export interface RichMessageMetadata {
-  stickers: Array<{
-    id: string;
-    name: string;
-    url: string;
-    format: string | null;
-  }>;
-  embeds: Array<{
-    title: string | null;
-    description: string | null;
+export interface StickerEvidence {
+  id: string;
+  name: string;
+  url: string;
+  format: string | null;
+}
+
+export interface EmbedEvidence {
+  title: string | null;
+  description: string | null;
+  url: string | null;
+  color: number | null;
+  image: string | null;
+  thumbnail: string | null;
+  author: {
+    name: string | null;
     url: string | null;
-    color: number | null;
-    image: string | null;
-    thumbnail: string | null;
-    author: {
-      name: string | null;
-      url: string | null;
-      iconURL: string | null;
-    } | null;
-    footer: { text: string | null; iconURL: string | null } | null;
-    fields: Array<{ name: string; value: string; inline: boolean }>;
-  }>;
-  attachments: Array<{
-    id: string;
-    name: string;
-    url: string;
-    contentType: string | null;
-    size: number;
-  }>;
+    iconURL: string | null;
+  } | null;
+  footer: { text: string | null; iconURL: string | null } | null;
+  fields: Array<{ name: string; value: string; inline: boolean }>;
+}
+
+export interface AttachmentEvidence {
+  id: string;
+  name: string;
+  url: string;
+  contentType: string | null;
+  size: number;
+}
+
+export interface MessageMediaEvidence {
+  stickers: StickerEvidence[];
+  embeds: EmbedEvidence[];
+  attachments: AttachmentEvidence[];
+}
+
+export interface RichMessageMetadata {
+  stickers: Array<StickerEvidence>;
+  embeds: Array<EmbedEvidence>;
+  attachments: Array<AttachmentEvidence>;
   author: {
     id: string;
     username: string;
@@ -165,6 +177,97 @@ export function getMessageMetadata(message: Message): RichMessageMetadata {
         }
       : null,
   };
+}
+
+export function parseRichMessageMetadata(
+  metadata: string | null | undefined,
+): RichMessageMetadata | null {
+  if (!metadata) return null;
+
+  try {
+    const parsed = JSON.parse(metadata) as Partial<RichMessageMetadata>;
+    return {
+      stickers: Array.isArray(parsed.stickers) ? parsed.stickers : [],
+      embeds: Array.isArray(parsed.embeds) ? parsed.embeds : [],
+      attachments: Array.isArray(parsed.attachments) ? parsed.attachments : [],
+      author: parsed.author as RichMessageMetadata["author"],
+      member: (parsed.member ?? null) as RichMessageMetadata["member"],
+      channel: parsed.channel as RichMessageMetadata["channel"],
+      reference: (parsed.reference ?? null) as RichMessageMetadata["reference"],
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function extractMessageMediaEvidence(
+  metadata: string | null | undefined,
+): MessageMediaEvidence {
+  const parsed = parseRichMessageMetadata(metadata);
+  return {
+    stickers: parsed?.stickers ?? [],
+    embeds: parsed?.embeds ?? [],
+    attachments: parsed?.attachments ?? [],
+  };
+}
+
+export function formatMediaEvidenceForPrompt(
+  metadata: string | null | undefined,
+): string {
+  const evidence = extractMessageMediaEvidence(metadata);
+  const parts: string[] = [];
+
+  if (evidence.stickers.length > 0) {
+    parts.push(
+      `[stickers: ${evidence.stickers
+        .map((sticker) =>
+          [`name=${sticker.name}`, sticker.url ? `url=${sticker.url}` : null]
+            .filter(Boolean)
+            .join(", "),
+        )
+        .join(" | ")}]`,
+    );
+  }
+
+  if (evidence.embeds.length > 0) {
+    parts.push(
+      `[embeds: ${evidence.embeds
+        .map((embed) =>
+          [
+            embed.title ? `title=${embed.title}` : null,
+            embed.description ? `description=${embed.description}` : null,
+            embed.url ? `url=${embed.url}` : null,
+            embed.image ? `image=${embed.image}` : null,
+            embed.thumbnail ? `thumbnail=${embed.thumbnail}` : null,
+            embed.fields.length > 0
+              ? `fields=${embed.fields.map((field) => `${field.name}: ${field.value}`).join("; ")}`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(", "),
+        )
+        .join(" | ")}]`,
+    );
+  }
+
+  if (evidence.attachments.length > 0) {
+    parts.push(
+      `[attachments: ${evidence.attachments
+        .map((attachment) =>
+          [
+            `name=${attachment.name}`,
+            attachment.contentType ? `type=${attachment.contentType}` : null,
+            `size=${attachment.size}`,
+            attachment.url ? `url=${attachment.url}` : null,
+          ]
+            .filter(Boolean)
+            .join(", "),
+        )
+        .join(" | ")}]`,
+    );
+  }
+
+  return parts.join(" ");
 }
 
 export function getDisplayContent(message: Message): string {

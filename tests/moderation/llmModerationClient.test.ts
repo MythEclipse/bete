@@ -77,6 +77,25 @@ describe("parseModerationResponse", () => {
     ]);
   });
 
+  it("rejects deferral analysis text", () => {
+    expect(() =>
+      parseModerationResponse(
+        JSON.stringify({
+          results: [
+            {
+              message_id: "m1",
+              status: "warn",
+              flags: [],
+              score: 0.4,
+              analysis: "Kurang konteks, perlu dicek admin.",
+            },
+          ],
+        }),
+        ["m1"],
+      ),
+    ).toThrow(/deferral/i);
+  });
+
   it("handles missing target ids gracefully", () => {
     const result = parseModerationResponse(JSON.stringify({ results: [] }), [
       "m1",

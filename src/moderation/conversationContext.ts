@@ -1,3 +1,4 @@
+import { formatMediaEvidenceForPrompt } from "./messageMetadata.js";
 import type { MessageRecord } from "./types.js";
 
 export interface ConversationContextInput {
@@ -29,7 +30,9 @@ export function formatMessageForPrompt(
 ): string {
   const content = msg.edited_content ?? msg.content;
   const timestamp = formatTimestamp(msg.created_at);
-  return `[${label}] id=${msg.id} time=${timestamp} user=${msg.username}: ${content}`;
+  const mediaEvidence = formatMediaEvidenceForPrompt(msg.metadata);
+  const mediaSuffix = mediaEvidence ? ` ${mediaEvidence}` : "";
+  return `[${label}] id=${msg.id} time=${timestamp} user=${msg.username}: ${content}${mediaSuffix}`;
 }
 
 /**
