@@ -42,6 +42,7 @@
     "drizzle-orm": "^0.45.2",
     "express": "^5.2.1",
     "helmet": "^8.1.0",
+    "indonesian-badwords": "^1.0.1",
     "libsodium-wrappers": "^0.8.4",
     "lucide-react": "^1.16.0",
     "openai": "^6.38.0",

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { config } from "../config.js";
 import { createChildLogger } from "../logger.js";
 import { retryWithBackoff } from "../retry.js";
+import { formatModerationTextEvidenceForPrompt } from "./indonesianTextNormalizer.js";
 import { extractMessageMediaEvidence } from "./messageMetadata.js";
 import type {
   AnalysisResult,
@@ -663,10 +664,13 @@ Bahasa utama komunitas ini adalah BAHASA INDONESIA. Bahasa Inggris adalah bahasa
 
 ## Konteks Server
 Ini adalah server Discord komunitas Indonesia. Kamu harus memahami:
-- Bahasa gaul/slang Indonesia: "anjay", "wkwk", "gws", "gaskeun", "santuy", "njir", "baka", dll.
+- Bahasa gaul/slang Indonesia: "anjay", "wkwk", "gws", "gaskeun", "santuy", "njir", "baka", "woy", "woi", "hadeh", dll.
 - Singkatan umum: "gw", "lo", "emg", "kyk", "tdk", "krn", "jgn", dll.
 - Konteks budaya lokal: SARA (Suku, Agama, Ras, Antar-golongan), hoaks, ujaran kebencian berbasis konteks Indonesia.
 - Perbedaan antara humor/banter biasa vs konten yang benar-benar melanggar.
+- "woy"/"woi" adalah sapaan/interjeksi informal Indonesia dan tidak boleh dianggap SARA, hate speech, atau harassment tanpa target hinaan/ancaman jelas.
+- Discord custom emoji seperti <:hadeh:123> atau [emoji:hadeh] adalah ekspresi/emoji, bukan pelanggaran teks. Gunakan sebagai konteks ekspresi saja.
+- Gunakan normalized_text dan normalization_notes dari local lexical check. Jika notes menyatakan no Indonesian badword detected dan hanya ada slang/emoji aman, jangan flag karena kata slang itu saja.
 - Kalimat ambigu dalam bahasa Indonesia harus diberi keputusan final: "clean" bila bukti pelanggaran tidak jelas, "flagged" bila bukti pelanggaran jelas.
 - Jangan pernah menulis analisis yang meminta admin/moderator memeriksa ulang, menyebut kurang konteks, atau tidak bisa menentukan. Berikan kesimpulan langsung berdasarkan teks + media + konteks yang tersedia.
 - Gambar, sticker, embed, dan preview link adalah evidence utama yang setara dengan teks, bukan sekadar URL teks.
@@ -733,6 +737,8 @@ CRITICAL: "message_id" HARUS berupa STRING (dibungkus tanda kutip ganda). Jangan
         const webTexts = messageWebTextMap.get(msg.id) ?? [];
         const mediaAnalyses = messageMediaAnalysisMap.get(msg.id) ?? [];
         const webContext = webTexts.length > 0 ? `\n${webTexts.join("\n")}` : "";
+        const textEvidence = formatModerationTextEvidenceForPrompt(content);
+        const textContext = textEvidence ? `\n${textEvidence}` : "";
         const mediaAnalysisContext =
           mediaAnalyses.length > 0 ? `\n${mediaAnalyses.join("\n")}` : "";
         const mediaEvidence = extractMessageMediaEvidence(msg.metadata);
@@ -748,7 +754,7 @@ CRITICAL: "message_id" HARUS berupa STRING (dibungkus tanda kutip ganda). Jangan
         ]
           .filter(Boolean)
           .join(" ");
-        return `[target] id=${msg.id} user=${msg.username}: ${content}${mediaContext ? ` ${mediaContext}` : ""}${webContext}${mediaAnalysisContext}`;
+        return `[target] id=${msg.id} user=${msg.username}: ${content}${mediaContext ? ` ${mediaContext}` : ""}${textContext}${webContext}${mediaAnalysisContext}`;
       })
       .join("\n");
 
