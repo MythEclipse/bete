@@ -16,6 +16,7 @@ import { createAnalyticsRoutes } from "../routes/analyticsRoutes.js";
 import { createMediaRoutes } from "../routes/mediaRoutes.js";
 import { createMessageRoutes } from "../routes/messageRoutes.js";
 import { createRecordingsRoutes } from "../routes/recordingsRoutes.js";
+import { createReviewRoutes } from "../routes/reviewRoutes.js";
 import { createSyncRoutes } from "../routes/syncRoutes.js";
 import { createUIStateRoutes } from "../routes/uiStateRoutes.js";
 import { createVoiceRoutes } from "../routes/voiceRoutes.js";
@@ -114,6 +115,7 @@ export function createHttpApp(options: CreateHttpAppOptions) {
   );
   app.use("/api", createMessageRoutes());
   app.use("/api", createAnalysisRoutes());
+  app.use("/api", createReviewRoutes());
   app.use("/api", createAnalyticsRoutes());
   app.use("/api", createSyncRoutes(options.client));
   app.use("/api", createRecordingsRoutes());

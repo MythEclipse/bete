@@ -1,5 +1,6 @@
 import {
   bigint as pgBigint,
+  boolean as pgBoolean,
   foreignKey as pgForeignKey,
   index as pgIndex,
   integer as pgInteger,
@@ -77,6 +78,16 @@ export const pgMessagesTable = pgTable(
     ai_moderation_score: pgReal("ai_moderation_score"),
     ai_moderation_raw: pgText("ai_moderation_raw"),
     ai_analysis: pgText("ai_analysis"),
+    ai_categories: pgText("ai_categories"),
+    ai_severity: pgText("ai_severity", {
+      enum: ["none", "low", "medium", "high", "critical"],
+    }),
+    ai_confidence: pgReal("ai_confidence"),
+    ai_recommended_action: pgText("ai_recommended_action", {
+      enum: ["none", "monitor", "warn", "review", "delete", "escalate"],
+    }),
+    ai_policy_version: pgText("ai_policy_version"),
+    ai_evidence: pgText("ai_evidence"),
     ai_analyzed_at: pgBigint("ai_analyzed_at", { mode: "number" }),
     ai_error: pgText("ai_error"),
   },
@@ -297,6 +308,16 @@ export const sqliteMessagesTable = sqliteTable(
     ai_moderation_score: sqliteReal("ai_moderation_score"),
     ai_moderation_raw: sqliteText("ai_moderation_raw"),
     ai_analysis: sqliteText("ai_analysis"),
+    ai_categories: sqliteText("ai_categories"),
+    ai_severity: sqliteText("ai_severity", {
+      enum: ["none", "low", "medium", "high", "critical"],
+    }),
+    ai_confidence: sqliteReal("ai_confidence"),
+    ai_recommended_action: sqliteText("ai_recommended_action", {
+      enum: ["none", "monitor", "warn", "review", "delete", "escalate"],
+    }),
+    ai_policy_version: sqliteText("ai_policy_version"),
+    ai_evidence: sqliteText("ai_evidence"),
     ai_analyzed_at: sqliteInteger("ai_analyzed_at"),
     ai_error: sqliteText("ai_error"),
   },
@@ -450,6 +471,210 @@ export const sqliteVoiceRecordingsTable = sqliteTable(
   }),
 );
 
+/**
+ * Message Reviews Table (PostgreSQL)
+ * Tracks manual reviews of messages flagged by AI moderation
+ */
+export const pgMessageReviewsTable = pgTable(
+  "message_reviews",
+  {
+    id: pgText("id").primaryKey(),
+    message_id: pgText("message_id").notNull(),
+    guild_id: pgText("guild_id").notNull(),
+    channel_id: pgText("channel_id").notNull(),
+    reviewer_id: pgText("reviewer_id"),
+    status: pgText("status", {
+      enum: ["pending", "approved", "rejected", "escalated"],
+    })
+      .notNull()
+      .default("pending"),
+    notes: pgText("notes"),
+    created_at: pgBigint("created_at", { mode: "number" }).notNull(),
+    reviewed_at: pgBigint("reviewed_at", { mode: "number" }),
+  },
+  (table) => ({
+    messageIdIdx: pgIndex("idx_message_reviews_message_id").on(table.message_id),
+    statusIdx: pgIndex("idx_message_reviews_status").on(table.status),
+    createdAtIdx: pgIndex("idx_message_reviews_created_at").on(table.created_at),
+    guildStatusIdx: pgIndex("idx_message_reviews_guild_status").on(
+      table.guild_id,
+      table.status,
+      table.created_at,
+    ),
+  }),
+);
+
+/**
+ * Message Reviews Table (SQLite)
+ * Tracks manual reviews of messages flagged by AI moderation
+ */
+export const sqliteMessageReviewsTable = sqliteTable(
+  "message_reviews",
+  {
+    id: sqliteText("id").primaryKey(),
+    message_id: sqliteText("message_id").notNull(),
+    guild_id: sqliteText("guild_id").notNull(),
+    channel_id: sqliteText("channel_id").notNull(),
+    reviewer_id: sqliteText("reviewer_id"),
+    status: sqliteText("status", {
+      enum: ["pending", "approved", "rejected", "escalated"],
+    })
+      .notNull()
+      .default("pending"),
+    notes: sqliteText("notes"),
+    created_at: sqliteInteger("created_at").notNull(),
+    reviewed_at: sqliteInteger("reviewed_at"),
+  },
+  (table) => ({
+    messageIdIdx: sqliteIndex("idx_message_reviews_message_id").on(
+      table.message_id,
+    ),
+    statusIdx: sqliteIndex("idx_message_reviews_status").on(table.status),
+    createdAtIdx: sqliteIndex("idx_message_reviews_created_at").on(
+      table.created_at,
+    ),
+    guildStatusIdx: sqliteIndex("idx_message_reviews_guild_status").on(
+      table.guild_id,
+      table.status,
+      table.created_at,
+    ),
+  }),
+);
+
+/**
+ * Moderation Actions Table (PostgreSQL)
+ * Tracks actions taken on messages (delete, mute, etc.)
+ */
+export const pgModerationActionsTable = pgTable(
+  "moderation_actions",
+  {
+    id: pgText("id").primaryKey(),
+    message_id: pgText("message_id"),
+    user_id: pgText("user_id"),
+    guild_id: pgText("guild_id").notNull(),
+    action_type: pgText("action_type", {
+      enum: ["delete_message", "mute_user", "warn_user", "kick_user", "ban_user"],
+    })
+      .notNull(),
+    reason: pgText("reason"),
+    executed_by: pgText("executed_by"),
+    status: pgText("status", {
+      enum: ["pending", "executed", "failed"],
+    })
+      .notNull()
+      .default("pending"),
+    error: pgText("error"),
+    created_at: pgBigint("created_at", { mode: "number" }).notNull(),
+    executed_at: pgBigint("executed_at", { mode: "number" }),
+  },
+  (table) => ({
+    messageIdIdx: pgIndex("idx_moderation_actions_message_id").on(
+      table.message_id,
+    ),
+    userIdIdx: pgIndex("idx_moderation_actions_user_id").on(table.user_id),
+    statusIdx: pgIndex("idx_moderation_actions_status").on(table.status),
+    guildStatusIdx: pgIndex("idx_moderation_actions_guild_status").on(
+      table.guild_id,
+      table.status,
+      table.created_at,
+    ),
+  }),
+);
+
+/**
+ * Moderation Actions Table (SQLite)
+ * Tracks actions taken on messages (delete, mute, etc.)
+ */
+export const sqliteModerationActionsTable = sqliteTable(
+  "moderation_actions",
+  {
+    id: sqliteText("id").primaryKey(),
+    message_id: sqliteText("message_id"),
+    user_id: sqliteText("user_id"),
+    guild_id: sqliteText("guild_id").notNull(),
+    action_type: sqliteText("action_type", {
+      enum: ["delete_message", "mute_user", "warn_user", "kick_user", "ban_user"],
+    })
+      .notNull(),
+    reason: sqliteText("reason"),
+    executed_by: sqliteText("executed_by"),
+    status: sqliteText("status", {
+      enum: ["pending", "executed", "failed"],
+    })
+      .notNull()
+      .default("pending"),
+    error: sqliteText("error"),
+    created_at: sqliteInteger("created_at").notNull(),
+    executed_at: sqliteInteger("executed_at"),
+  },
+  (table) => ({
+    messageIdIdx: sqliteIndex("idx_moderation_actions_message_id").on(
+      table.message_id,
+    ),
+    userIdIdx: sqliteIndex("idx_moderation_actions_user_id").on(table.user_id),
+    statusIdx: sqliteIndex("idx_moderation_actions_status").on(table.status),
+    guildStatusIdx: sqliteIndex("idx_moderation_actions_guild_status").on(
+      table.guild_id,
+      table.status,
+      table.created_at,
+    ),
+  }),
+);
+
+/**
+ * Retention Policies Table (PostgreSQL)
+ * Defines data retention rules per guild/channel
+ */
+export const pgRetentionPoliciesTable = pgTable(
+  "retention_policies",
+  {
+    id: pgText("id").primaryKey(),
+    guild_id: pgText("guild_id").notNull(),
+    channel_id: pgText("channel_id"),
+    retention_days: pgInteger("retention_days").notNull().default(90),
+    apply_to_media: pgBoolean("apply_to_media").notNull().default(true),
+    apply_to_voice: pgBoolean("apply_to_voice").notNull().default(true),
+    enabled: pgBoolean("enabled").notNull().default(true),
+    created_at: pgBigint("created_at", { mode: "number" }).notNull(),
+    updated_at: pgBigint("updated_at", { mode: "number" }).notNull(),
+  },
+  (table) => ({
+    guildIdIdx: pgIndex("idx_retention_policies_guild_id").on(table.guild_id),
+    enabledIdx: pgIndex("idx_retention_policies_enabled").on(table.enabled),
+  }),
+);
+
+/**
+ * Retention Policies Table (SQLite)
+ * Defines data retention rules per guild/channel
+ */
+export const sqliteRetentionPoliciesTable = sqliteTable(
+  "retention_policies",
+  {
+    id: sqliteText("id").primaryKey(),
+    guild_id: sqliteText("guild_id").notNull(),
+    channel_id: sqliteText("channel_id"),
+    retention_days: sqliteInteger("retention_days").notNull().default(90),
+    apply_to_media: sqliteInteger("apply_to_media", { mode: "boolean" })
+      .notNull()
+      .default(true),
+    apply_to_voice: sqliteInteger("apply_to_voice", { mode: "boolean" })
+      .notNull()
+      .default(true),
+    enabled: sqliteInteger("enabled", { mode: "boolean" })
+      .notNull()
+      .default(true),
+    created_at: sqliteInteger("created_at").notNull(),
+    updated_at: sqliteInteger("updated_at").notNull(),
+  },
+  (table) => ({
+    guildIdIdx: sqliteIndex("idx_retention_policies_guild_id").on(
+      table.guild_id,
+    ),
+    enabledIdx: sqliteIndex("idx_retention_policies_enabled").on(table.enabled),
+  }),
+);
+
 // Runtime table selection based on config
 // ========================================
 
@@ -477,6 +702,21 @@ export const voiceRecordingsTable =
     ? pgVoiceRecordingsTable
     : sqliteVoiceRecordingsTable;
 
+export const messageReviewsTable =
+  config.DATABASE_TYPE === "postgres"
+    ? pgMessageReviewsTable
+    : sqliteMessageReviewsTable;
+
+export const moderationActionsTable =
+  config.DATABASE_TYPE === "postgres"
+    ? pgModerationActionsTable
+    : sqliteModerationActionsTable;
+
+export const retentionPoliciesTable =
+  config.DATABASE_TYPE === "postgres"
+    ? pgRetentionPoliciesTable
+    : sqliteRetentionPoliciesTable;
+
 // Export table types for use in queries
 export type MuxerJob = typeof muxerJobsTable.$inferSelect;
 export type MuxerJobInsert = typeof muxerJobsTable.$inferInsert;
@@ -495,3 +735,12 @@ export type AIAnalysisRunInsert = typeof aiAnalysisRunsTable.$inferInsert;
 
 export type VoiceRecording = typeof voiceRecordingsTable.$inferSelect;
 export type VoiceRecordingInsert = typeof voiceRecordingsTable.$inferInsert;
+
+export type MessageReview = typeof messageReviewsTable.$inferSelect;
+export type MessageReviewInsert = typeof messageReviewsTable.$inferInsert;
+
+export type ModerationAction = typeof moderationActionsTable.$inferSelect;
+export type ModerationActionInsert = typeof moderationActionsTable.$inferInsert;
+
+export type RetentionPolicy = typeof retentionPoliciesTable.$inferSelect;
+export type RetentionPolicyInsert = typeof retentionPoliciesTable.$inferInsert;

@@ -13,6 +13,16 @@ import type {
 } from "./types.js";
 import { extractUrlsFromText, fetchUrlSafely } from "./urlFetcher.js";
 
+const SeveritySchema = z.enum(["none", "low", "medium", "high", "critical"]);
+const RecommendedActionSchema = z.enum([
+  "none",
+  "monitor",
+  "warn",
+  "review",
+  "delete",
+  "escalate",
+]);
+
 const ModerationResponseSchema = z.object({
   results: z.array(
     z.object({
@@ -21,6 +31,12 @@ const ModerationResponseSchema = z.object({
       flags: z.array(z.string()).catch([]),
       score: z.number().catch(0),
       analysis: z.string().catch(""),
+      categories: z.array(z.string()).optional().catch(undefined),
+      severity: SeveritySchema.optional().catch(undefined),
+      confidence: z.number().optional().catch(undefined),
+      recommended_action: RecommendedActionSchema.optional().catch(undefined),
+      policy_version: z.string().optional().catch(undefined),
+      evidence: z.array(z.string()).optional().catch(undefined),
     }),
   ),
 });
@@ -31,6 +47,31 @@ const DEFERRAL_ANALYSIS_PATTERN =
 
 function hasDeferralAnalysis(analysis: string): boolean {
   return DEFERRAL_ANALYSIS_PATTERN.test(analysis);
+}
+
+function clampScore(value: number | undefined, fallback = 0): number {
+  return Math.max(0, Math.min(1, Number.isFinite(value) ? (value as number) : fallback));
+}
+
+function deriveSeverity(
+  status: "clean" | "warn" | "flagged",
+  score: number,
+): z.infer<typeof SeveritySchema> {
+  if (status === "clean") return "none";
+  if (status === "warn") return score >= 0.65 ? "medium" : "low";
+  if (score >= 0.9) return "critical";
+  return score >= 0.75 ? "high" : "medium";
+}
+
+function deriveRecommendedAction(
+  status: "clean" | "warn" | "flagged",
+  severity: z.infer<typeof SeveritySchema>,
+): z.infer<typeof RecommendedActionSchema> {
+  if (status === "clean") return "none";
+  if (status === "warn") return severity === "medium" ? "review" : "warn";
+  if (severity === "critical") return "escalate";
+  if (severity === "high") return "delete";
+  return "review";
 }
 
 const openai = new OpenAI({
@@ -198,7 +239,19 @@ export function parseModerationResponse(
   const targetIdSet = new Set(targetIds);
 
   const results: (AnalysisResult | null)[] = response.results.map((result) => {
-    const { message_id, status, flags, score, analysis } = result;
+    const {
+      message_id,
+      status,
+      flags,
+      score,
+      analysis,
+      categories,
+      severity,
+      confidence,
+      recommended_action,
+      policy_version,
+      evidence,
+    } = result;
     const finalId = message_id.trim();
 
     if (!targetIdSet.has(finalId)) {
@@ -217,12 +270,23 @@ export function parseModerationResponse(
       );
     }
 
+    const normalizedScore = clampScore(score);
+    const normalizedConfidence = clampScore(confidence, normalizedScore);
+    const normalizedSeverity = severity ?? deriveSeverity(status, normalizedScore);
+
     return {
       messageId: finalId,
       status: status as "clean" | "warn" | "flagged",
       flags,
-      score: Math.max(0, Math.min(1, score)),
+      score: normalizedScore,
       analysis,
+      categories: categories ?? flags,
+      severity: normalizedSeverity,
+      confidence: normalizedConfidence,
+      recommendedAction:
+        recommended_action ?? deriveRecommendedAction(status, normalizedSeverity),
+      policyVersion: policy_version ?? "default-2026-05-30",
+      evidence: evidence ?? [],
     };
   });
 
@@ -243,6 +307,12 @@ export function parseModerationResponse(
         flags: ["analysis_incomplete"],
         score: 0,
         analysis: "Analysis incomplete - LLM did not process this message",
+        categories: ["analysis_incomplete"],
+        severity: "none",
+        confidence: 0,
+        recommendedAction: "review",
+        policyVersion: "default-2026-05-30",
+        evidence: [],
       });
     }
   }
@@ -696,6 +766,12 @@ Struktur wajib:
       "status": "clean" | "warn" | "flagged",
       "flags": [<string array, kosong jika clean>],
       "score": <float 0.0–1.0>,
+      "categories": [<kategori kebijakan, kosong jika clean>],
+      "severity": "none" | "low" | "medium" | "high" | "critical",
+      "confidence": <float 0.0–1.0>,
+      "recommended_action": "none" | "monitor" | "warn" | "review" | "delete" | "escalate",
+      "policy_version": "default-2026-05-30",
+      "evidence": [<kutipan/evidence singkat dari teks/media/konteks>],
       "analysis": "<penjelasan singkat dalam Bahasa Indonesia, maks 2 kalimat>"
     }
   ]
@@ -880,6 +956,12 @@ CRITICAL: "message_id" HARUS berupa STRING (dibungkus tanda kutip ganda). Jangan
       flags: ["analysis_parse_failed"],
       score: 0,
       analysis: `Parsing failed: ${errorMsg}.`,
+      categories: ["analysis_parse_failed"],
+      severity: "none",
+      confidence: 0,
+      recommendedAction: "review",
+      policyVersion: "default-2026-05-30",
+      evidence: [],
     }));
   }
 

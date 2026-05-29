@@ -1,4 +1,12 @@
 export type AIStatus = "pending" | "clean" | "warn" | "flagged" | "error";
+export type AISeverity = "none" | "low" | "medium" | "high" | "critical";
+export type AIRecommendedAction =
+  | "none"
+  | "monitor"
+  | "warn"
+  | "review"
+  | "delete"
+  | "escalate";
 
 export interface MessageRecord {
   id: string;
@@ -20,6 +28,12 @@ export interface MessageRecord {
   ai_moderation_score?: number | null;
   ai_moderation_raw?: string | null;
   ai_analysis?: string | null;
+  ai_categories?: string | null;
+  ai_severity?: AISeverity | null;
+  ai_confidence?: number | null;
+  ai_recommended_action?: AIRecommendedAction | null;
+  ai_policy_version?: string | null;
+  ai_evidence?: string | null;
   ai_analyzed_at?: number | null;
   ai_error?: string | null;
 }

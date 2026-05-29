@@ -4,6 +4,14 @@ import type {
 } from "./broadcaster.js";
 
 export type AIStatus = "pending" | "clean" | "warn" | "flagged" | "error";
+export type AISeverity = "none" | "low" | "medium" | "high" | "critical";
+export type AIRecommendedAction =
+  | "none"
+  | "monitor"
+  | "warn"
+  | "review"
+  | "delete"
+  | "escalate";
 
 export type { BroadcasterClient, ModerationBroadcaster };
 
@@ -27,6 +35,12 @@ export interface MessageRecord {
   ai_moderation_score?: number | null;
   ai_moderation_raw?: string | null;
   ai_analysis?: string | null;
+  ai_categories?: string | null;
+  ai_severity?: AISeverity | null;
+  ai_confidence?: number | null;
+  ai_recommended_action?: AIRecommendedAction | null;
+  ai_policy_version?: string | null;
+  ai_evidence?: string | null;
   ai_analyzed_at?: number | null;
   ai_error?: string | null;
 }
@@ -93,6 +107,12 @@ export interface AnalysisResult {
   flags: string[];
   score: number;
   analysis: string;
+  categories?: string[];
+  severity?: AISeverity;
+  confidence?: number;
+  recommendedAction?: AIRecommendedAction;
+  policyVersion?: string;
+  evidence?: string[];
 }
 
 export type MediaMode = "music" | "screen";
@@ -144,4 +164,51 @@ export interface AnalysisQueueStatus {
   /** True when the individual-fallback circuit breaker is tripped. */
   individualCircuitBreakerActive: boolean;
   lastError: string | null;
+}
+
+export type ReviewStatus = "pending" | "approved" | "rejected" | "escalated";
+
+export interface MessageReview {
+  id: string;
+  message_id: string;
+  guild_id: string;
+  channel_id: string;
+  reviewer_id: string | null;
+  status: ReviewStatus;
+  notes: string | null;
+  created_at: number;
+  reviewed_at: number | null;
+}
+
+export type ModerationActionType =
+  | "delete_message"
+  | "mute_user"
+  | "warn_user"
+  | "kick_user"
+  | "ban_user";
+
+export interface ModerationAction {
+  id: string;
+  message_id: string | null;
+  user_id: string | null;
+  guild_id: string;
+  action_type: ModerationActionType;
+  reason: string | null;
+  executed_by: string | null;
+  status: "pending" | "executed" | "failed";
+  error: string | null;
+  created_at: number;
+  executed_at: number | null;
+}
+
+export interface RetentionPolicy {
+  id: string;
+  guild_id: string;
+  channel_id: string | null;
+  retention_days: number;
+  apply_to_media: boolean;
+  apply_to_voice: boolean;
+  enabled: boolean;
+  created_at: number;
+  updated_at: number;
 }
