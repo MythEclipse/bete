@@ -10,14 +10,23 @@ import {
   sql,
 } from "drizzle-orm";
 import { getDatabase } from "../database/drizzle.js";
-import { attachmentsTable, messagesTable } from "../database/schema.js";
+import {
+  attachmentsTable,
+  messageReviewsTable,
+  messagesTable,
+  moderationActionsTable,
+  retentionPoliciesTable,
+} from "../database/schema.js";
 import { createChildLogger } from "../logger.js";
 import { decodeCursor, encodeCursor } from "./pagination.js";
 import type {
   AttachmentRecord,
   MessageQuery,
   MessageRecord,
+  MessageReview,
+  ModerationAction,
   PageResult,
+  RetentionPolicy,
 } from "./types.js";
 
 const logger = createChildLogger("message-store");
@@ -90,12 +99,12 @@ function buildListMessageConditions(query: MessageQuery): SQL[] {
   return conditions;
 }
 
-function pageMessages(
+function pageRows<T extends { created_at: number; id: string }>(
   rows: unknown[],
   limit: number,
-): PageResult<MessageRecord> {
+): PageResult<T> {
   const hasMore = rows.length > limit;
-  const data = rows.slice(0, limit) as MessageRecord[];
+  const data = rows.slice(0, limit) as T[];
   const lastItem = data[data.length - 1];
   const nextCursor =
     hasMore && lastItem
@@ -103,6 +112,13 @@ function pageMessages(
       : null;
 
   return { data, nextCursor };
+}
+
+function pageMessages(
+  rows: unknown[],
+  limit: number,
+): PageResult<MessageRecord> {
+  return pageRows<MessageRecord>(rows, limit);
 }
 
 export { decodeCursor, encodeCursor } from "./pagination.js";
@@ -378,8 +394,19 @@ interface AIAnalysisUpdate {
   score?: number | null;
   raw?: string | null;
   analysis?: string | null;
+  categories?: string[] | string | null;
+  severity?: MessageRecord["ai_severity"] | null;
+  confidence?: number | null;
+  recommendedAction?: MessageRecord["ai_recommended_action"] | null;
+  policyVersion?: string | null;
+  evidence?: string[] | string | null;
   analyzedAt?: number | null;
   error?: string | null;
+}
+
+function stringifyAIList(value: string[] | string | null | undefined): string | null {
+  if (value == null) return null;
+  return Array.isArray(value) ? JSON.stringify(value) : value;
 }
 
 export async function updateMessageAIAnalysis(
@@ -396,6 +423,12 @@ export async function updateMessageAIAnalysis(
         ai_moderation_score: result.score ?? null,
         ai_moderation_raw: result.raw ?? null,
         ai_analysis: result.analysis ?? null,
+        ai_categories: stringifyAIList(result.categories),
+        ai_severity: result.severity ?? null,
+        ai_confidence: result.confidence ?? result.score ?? null,
+        ai_recommended_action: result.recommendedAction ?? null,
+        ai_policy_version: result.policyVersion ?? null,
+        ai_evidence: stringifyAIList(result.evidence),
         ai_analyzed_at: result.analyzedAt ?? Date.now(),
         ai_error: result.error ?? null,
       })
@@ -796,6 +829,334 @@ export async function getIncompleteMessagesByConversation(
         error: error instanceof Error ? error.message : String(error),
       },
       "Failed to get incomplete messages by conversation",
+    );
+    throw error;
+  }
+}
+
+// Message Reviews CRUD
+// ====================
+
+export async function createMessageReview(
+  review: Omit<MessageReview, "id" | "created_at">,
+): Promise<MessageReview> {
+  try {
+    const database = db();
+    const id = `review-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    const created_at = Date.now();
+
+    const rows = await database
+      .insert<Array<MessageReview>>(messageReviewsTable)
+      .values({
+        ...review,
+        id,
+        created_at,
+      })
+      .returning();
+
+    return rows[0] as MessageReview;
+  } catch (error) {
+    logger.error(
+      {
+        messageId: review.message_id,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      "Failed to create message review",
+    );
+    throw error;
+  }
+}
+
+export async function getMessageReview(id: string): Promise<MessageReview | null> {
+  try {
+    const database = db();
+    const rows = await database
+      .select()
+      .from(messageReviewsTable)
+      .where(eq(messageReviewsTable.id, id));
+
+    return (rows[0] as MessageReview) || null;
+  } catch (error) {
+    logger.error(
+      { reviewId: id, error: error instanceof Error ? error.message : String(error) },
+      "Failed to get message review",
+    );
+    throw error;
+  }
+}
+
+export async function listMessageReviews(query: {
+  guildId?: string;
+  channelId?: string;
+  status?: string[];
+  cursor?: string;
+  limit: number;
+}): Promise<PageResult<MessageReview>> {
+  try {
+    const database = db();
+    const limit = Math.max(1, Math.min(query.limit || 50, 100));
+    const conditions: SQL[] = [];
+
+    if (query.guildId) {
+      conditions.push(eq(messageReviewsTable.guild_id, query.guildId));
+    }
+    if (query.channelId) {
+      conditions.push(eq(messageReviewsTable.channel_id, query.channelId));
+    }
+    if (query.status && query.status.length > 0) {
+      conditions.push(sql`${messageReviewsTable.status} in ${query.status}`);
+    }
+
+    const cursorData = decodeCursor(query.cursor);
+    if (cursorData) {
+      conditions.push(
+        sql`(${messageReviewsTable.created_at} < ${cursorData.created_at} or (${messageReviewsTable.created_at} = ${cursorData.created_at} and ${messageReviewsTable.id} < ${cursorData.id}))`,
+      );
+    }
+
+    const rows = await database
+      .select()
+      .from(messageReviewsTable)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(messageReviewsTable.created_at), desc(messageReviewsTable.id))
+      .limit(limit + 1);
+
+    return pageRows<MessageReview>(rows, limit);
+  } catch (error) {
+    logger.error(
+      { error: error instanceof Error ? error.message : String(error) },
+      "Failed to list message reviews",
+    );
+    throw error;
+  }
+}
+
+export async function updateMessageReview(
+  id: string,
+  updates: Partial<Omit<MessageReview, "id" | "created_at">>,
+): Promise<MessageReview | null> {
+  try {
+    const database = db();
+    const rows = (await database
+      .update(messageReviewsTable)
+      .set(updates)
+      .where(eq(messageReviewsTable.id, id))
+      .returning()) as MessageReview[];
+
+    return rows[0] || null;
+  } catch (error) {
+    logger.error(
+      { reviewId: id, error: error instanceof Error ? error.message : String(error) },
+      "Failed to update message review",
+    );
+    throw error;
+  }
+}
+
+// Moderation Actions CRUD
+// =======================
+
+export async function createModerationAction(
+  action: Omit<ModerationAction, "id" | "created_at">,
+): Promise<ModerationAction> {
+  try {
+    const database = db();
+    const id = `action-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    const created_at = Date.now();
+
+    const rows = await database
+      .insert<Array<ModerationAction>>(moderationActionsTable)
+      .values({
+        ...action,
+        id,
+        created_at,
+      })
+      .returning();
+
+    return rows[0] as ModerationAction;
+  } catch (error) {
+    logger.error(
+      {
+        guildId: action.guild_id,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      "Failed to create moderation action",
+    );
+    throw error;
+  }
+}
+
+export async function getModerationAction(id: string): Promise<ModerationAction | null> {
+  try {
+    const database = db();
+    const rows = await database
+      .select()
+      .from(moderationActionsTable)
+      .where(eq(moderationActionsTable.id, id));
+
+    return (rows[0] as ModerationAction) || null;
+  } catch (error) {
+    logger.error(
+      { actionId: id, error: error instanceof Error ? error.message : String(error) },
+      "Failed to get moderation action",
+    );
+    throw error;
+  }
+}
+
+export async function listModerationActions(query: {
+  guildId?: string;
+  status?: string[];
+  cursor?: string;
+  limit: number;
+}): Promise<PageResult<ModerationAction>> {
+  try {
+    const database = db();
+    const limit = Math.max(1, Math.min(query.limit || 50, 100));
+    const conditions: SQL[] = [];
+
+    if (query.guildId) {
+      conditions.push(eq(moderationActionsTable.guild_id, query.guildId));
+    }
+    if (query.status && query.status.length > 0) {
+      conditions.push(sql`${moderationActionsTable.status} in ${query.status}`);
+    }
+
+    const cursorData = decodeCursor(query.cursor);
+    if (cursorData) {
+      conditions.push(
+        sql`(${moderationActionsTable.created_at} < ${cursorData.created_at} or (${moderationActionsTable.created_at} = ${cursorData.created_at} and ${moderationActionsTable.id} < ${cursorData.id}))`,
+      );
+    }
+
+    const rows = await database
+      .select()
+      .from(moderationActionsTable)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(moderationActionsTable.created_at), desc(moderationActionsTable.id))
+      .limit(limit + 1);
+
+    return pageRows<ModerationAction>(rows, limit);
+  } catch (error) {
+    logger.error(
+      { error: error instanceof Error ? error.message : String(error) },
+      "Failed to list moderation actions",
+    );
+    throw error;
+  }
+}
+
+export async function updateModerationAction(
+  id: string,
+  updates: Partial<Omit<ModerationAction, "id" | "created_at">>,
+): Promise<ModerationAction | null> {
+  try {
+    const database = db();
+    const rows = (await database
+      .update(moderationActionsTable)
+      .set(updates)
+      .where(eq(moderationActionsTable.id, id))
+      .returning()) as ModerationAction[];
+
+    return rows[0] || null;
+  } catch (error) {
+    logger.error(
+      { actionId: id, error: error instanceof Error ? error.message : String(error) },
+      "Failed to update moderation action",
+    );
+    throw error;
+  }
+}
+
+// Retention Policies CRUD
+// =======================
+
+export async function getRetentionPolicy(guildId: string): Promise<RetentionPolicy | null> {
+  try {
+    const database = db();
+    const rows = await database
+      .select()
+      .from(retentionPoliciesTable)
+      .where(eq(retentionPoliciesTable.guild_id, guildId));
+
+    return (rows[0] as RetentionPolicy) || null;
+  } catch (error) {
+    logger.error(
+      { guildId, error: error instanceof Error ? error.message : String(error) },
+      "Failed to get retention policy",
+    );
+    throw error;
+  }
+}
+
+export async function upsertRetentionPolicy(
+  policy: Omit<RetentionPolicy, "created_at" | "updated_at">,
+): Promise<RetentionPolicy> {
+  try {
+    const database = db();
+    const now = Date.now();
+    const existing = await getRetentionPolicy(policy.guild_id);
+
+    if (existing) {
+      const rows = (await database
+        .update(retentionPoliciesTable)
+        .set({
+          ...policy,
+          updated_at: now,
+        })
+        .where(eq(retentionPoliciesTable.id, existing.id))
+        .returning()) as RetentionPolicy[];
+
+      return rows[0] as RetentionPolicy;
+    }
+
+    const id = `policy-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    const rows = (await database
+      .insert<Array<RetentionPolicy>>(retentionPoliciesTable)
+      .values({
+        ...policy,
+        id,
+        created_at: now,
+        updated_at: now,
+      })
+      .returning()) as RetentionPolicy[];
+
+    return rows[0] as RetentionPolicy;
+  } catch (error) {
+    logger.error(
+      {
+        guildId: policy.guild_id,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      "Failed to upsert retention policy",
+    );
+    throw error;
+  }
+}
+
+export async function getExpiredMessages(
+  retentionDays: number,
+): Promise<MessageRecord[]> {
+  try {
+    const database = db();
+    const cutoffTime = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+
+    const rows = await database
+      .select()
+      .from(messagesTable)
+      .where(
+        and(
+          sql`${messagesTable.created_at} < ${cutoffTime}`,
+          isNull(messagesTable.deleted_at),
+        ),
+      )
+      .limit(1000);
+
+    return rows as MessageRecord[];
+  } catch (error) {
+    logger.error(
+      { retentionDays, error: error instanceof Error ? error.message : String(error) },
+      "Failed to get expired messages",
     );
     throw error;
   }

@@ -24,9 +24,25 @@ function getAiIcon(status: string) {
   return null;
 }
 
+function parseStringList(value?: string | null): string[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+}
+
 export function MessageCard({ message, onReanalyze }: MessageCardProps) {
   const displayContent = message.edited_content ?? message.content;
   const aiStatus = message.ai_status ?? "pending";
+  const categories = parseStringList(message.ai_categories ?? message.ai_moderation_flags);
+  const evidence = parseStringList(message.ai_evidence);
+  const confidence = message.ai_confidence ?? message.ai_moderation_score ?? null;
   const [isReanalyzing, setIsReanalyzing] = useState(false);
 
   const handleReanalyze = async () => {
@@ -62,9 +78,28 @@ export function MessageCard({ message, onReanalyze }: MessageCardProps) {
           <p className="whitespace-pre-wrap break-words text-sm leading-6 text-foreground/90">
             {displayContent || "(empty message)"}
           </p>
+          <div className="flex flex-wrap gap-2 text-xs">
+            {message.ai_severity ? <Badge variant="outline">severity: {message.ai_severity}</Badge> : null}
+            {message.ai_recommended_action ? <Badge variant="outline">action: {message.ai_recommended_action}</Badge> : null}
+            {confidence != null ? <Badge variant="outline">confidence: {Math.round(confidence * 100)}%</Badge> : null}
+            {message.ai_policy_version ? <Badge variant="outline">policy: {message.ai_policy_version}</Badge> : null}
+            {categories.slice(0, 6).map((category) => (
+              <Badge key={category} variant="secondary">{category}</Badge>
+            ))}
+          </div>
           {message.ai_analysis ? (
             <div className="rounded-xl bg-muted p-3 text-sm text-muted-foreground">
               {message.ai_analysis}
+            </div>
+          ) : null}
+          {evidence.length > 0 ? (
+            <div className="rounded-xl border border-border bg-background/50 p-3 text-xs text-muted-foreground">
+              <div className="mb-1 font-medium text-foreground/80">Evidence</div>
+              <ul className="list-disc space-y-1 pl-4">
+                {evidence.slice(0, 4).map((item, index) => (
+                  <li key={`${message.id}-evidence-${index}`}>{item}</li>
+                ))}
+              </ul>
             </div>
           ) : null}
           {message.ai_error ? (

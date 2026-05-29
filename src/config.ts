@@ -124,7 +124,24 @@ const configSchema = z
       .string()
       .optional()
       .transform((v) => v === "true")
-      .default(false),
+      .default(true),
+    AUTO_DELETE_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.92),
+    AUTO_DELETE_ALLOWED_SEVERITIES: z.string().default("critical"),
+    AUTO_DELETE_ALLOWED_CATEGORIES: z.string().default(""),
+    AUTO_DELETE_EXCLUDED_CHANNEL_IDS: z.string().default(""),
+    AUTO_DELETE_EXCLUDED_USER_IDS: z.string().default(""),
+    RETENTION_MESSAGES_DAYS: z.coerce.number().int().min(0).default(0),
+    RETENTION_ATTACHMENTS_DAYS: z.coerce.number().int().min(0).default(0),
+    RETENTION_VOICE_DAYS: z.coerce.number().int().min(0).default(0),
+    RETENTION_CLEANUP_INTERVAL_MS: z.coerce
+      .number()
+      .positive()
+      .default(24 * 60 * 60 * 1000),
+    RETENTION_DRY_RUN: z
+      .string()
+      .optional()
+      .transform((v) => v === "true")
+      .default(true),
     DATABASE_TYPE: z.enum(["sqlite", "postgres"]).default("sqlite"),
     DATABASE_URL: z.string().optional(),
     POSTGRES_HOST: z.string().default("localhost"),

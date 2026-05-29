@@ -2,8 +2,112 @@ import type { Client, PermissionString } from "discord.js-selfbot-v13";
 import { config } from "../config.js";
 import { createChildLogger } from "../logger.js";
 import type { MessageRecord } from "./types.js";
+import { createModerationAction } from "./messageStore.js";
 
 const logger = createChildLogger("auto-delete-manager");
+
+const parseStringList = (value?: string | null): string[] => {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+};
+
+function isAutoDeleteEligible(message: MessageRecord): boolean {
+  if (message.ai_status !== "flagged") return false;
+
+  const confidence = message.ai_confidence ?? message.ai_moderation_score ?? 0;
+  if (confidence < config.AUTO_DELETE_MIN_CONFIDENCE) {
+    logger.debug(
+      { messageId: message.id, confidence, threshold: config.AUTO_DELETE_MIN_CONFIDENCE },
+      "Auto-delete skipped: confidence below threshold",
+    );
+    return false;
+  }
+
+  const allowedSeverities = config.AUTO_DELETE_ALLOWED_SEVERITIES
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (allowedSeverities.length > 0 && message.ai_severity) {
+    if (!allowedSeverities.includes(message.ai_severity)) {
+      logger.debug(
+        { messageId: message.id, severity: message.ai_severity, allowed: allowedSeverities },
+        "Auto-delete skipped: severity not in allowed list",
+      );
+      return false;
+    }
+  }
+
+  const recommendedAction = message.ai_recommended_action ?? "";
+  if (recommendedAction !== "delete" && recommendedAction !== "escalate") {
+    logger.debug(
+      { messageId: message.id, recommendedAction },
+      "Auto-delete skipped: recommended action is not delete/escalate",
+    );
+    return false;
+  }
+
+  const allowedCategories = parseStringList(config.AUTO_DELETE_ALLOWED_CATEGORIES);
+  if (allowedCategories.length > 0) {
+    const messageCategories = parseStringList(message.ai_categories ?? message.ai_moderation_flags);
+    const hasAllowedCategory = messageCategories.some((cat) => allowedCategories.includes(cat));
+    if (!hasAllowedCategory) {
+      logger.debug(
+        { messageId: message.id, categories: messageCategories, allowed: allowedCategories },
+        "Auto-delete skipped: no allowed categories match",
+      );
+      return false;
+    }
+  }
+
+  const excludedChannels = parseStringList(config.AUTO_DELETE_EXCLUDED_CHANNEL_IDS);
+  if (excludedChannels.length > 0) {
+    const channelId = message.thread_id ?? message.channel_id;
+    if (excludedChannels.includes(channelId)) {
+      logger.debug({ messageId: message.id, channelId }, "Auto-delete skipped: channel excluded");
+      return false;
+    }
+  }
+
+  const excludedUsers = parseStringList(config.AUTO_DELETE_EXCLUDED_USER_IDS);
+  if (excludedUsers.length > 0 && excludedUsers.includes(message.user_id)) {
+    logger.debug({ messageId: message.id, userId: message.user_id }, "Auto-delete skipped: user excluded");
+    return false;
+  }
+
+  return true;
+}
+
+async function logAutoDeleteAttempt(
+  message: MessageRecord,
+  result: AutoDeleteResult,
+): Promise<void> {
+  try {
+    await createModerationAction({
+      message_id: message.id,
+      user_id: message.user_id,
+      guild_id: message.guild_id,
+      action_type: "delete_message",
+      reason: result.reason,
+      executed_by: "auto-delete-manager",
+      status: result.deleted ? "executed" : result.reason === "dry_run" ? "executed" : "failed",
+      error: result.reason === "error" ? result.reason : null,
+      executed_at: result.deleted || result.reason === "dry_run" ? Date.now() : null,
+    });
+  } catch (error) {
+    logger.warn(
+      { messageId: message.id, error: error instanceof Error ? error.message : String(error) },
+      "Failed to persist auto-delete action log",
+    );
+  }
+}
 
 export interface AutoDeleteResult {
   deleted: boolean;
@@ -56,7 +160,15 @@ export async function attemptAutoDeleteFlaggedMessage(
   }
 
   if (message.ai_status !== "flagged") {
-    return { deleted: false, skipped: true, reason: "not_flagged" };
+    const result = { deleted: false, skipped: true, reason: "not_flagged" } as AutoDeleteResult;
+    await logAutoDeleteAttempt(message, result);
+    return result;
+  }
+
+  if (!isAutoDeleteEligible(message)) {
+    const result = { deleted: false, skipped: true, reason: "not_eligible" } as AutoDeleteResult;
+    await logAutoDeleteAttempt(message, result);
+    return result;
   }
 
   if (!client?.user?.id) {
@@ -106,30 +218,38 @@ export async function attemptAutoDeleteFlaggedMessage(
     }
 
     if (config.AUTO_DELETE_FLAGGED_DRY_RUN) {
+      const result = { deleted: false, skipped: true, reason: "dry_run" } as AutoDeleteResult;
+      await logAutoDeleteAttempt(message, result);
       logger.info(
         { messageId: message.id, channelId },
         "Auto-delete dry-run: would delete flagged message",
       );
-      return { deleted: false, skipped: true, reason: "dry_run" };
+      return result;
     }
 
     const discordMessage = await channel.messages.fetch(message.id);
     await discordMessage.delete();
 
+    const result = { deleted: true, skipped: false, reason: "deleted" } as AutoDeleteResult;
+    await logAutoDeleteAttempt(message, result);
     logger.info(
       { messageId: message.id, channelId },
       "Auto-deleted AI-flagged message",
     );
-    return { deleted: true, skipped: false, reason: "deleted" };
+    return result;
   } catch (error) {
     if (isAlreadyDeletedError(error)) {
+      const result = { deleted: true, skipped: false, reason: "already_deleted" } as AutoDeleteResult;
+      await logAutoDeleteAttempt(message, result);
       logger.info(
         { messageId: message.id, code: getErrorCode(error) },
         "Auto-delete skipped: message already deleted",
       );
-      return { deleted: true, skipped: false, reason: "already_deleted" };
+      return result;
     }
 
+    const result = { deleted: false, skipped: true, reason: "error" } as AutoDeleteResult;
+    await logAutoDeleteAttempt(message, result);
     logger.error(
       {
         messageId: message.id,
@@ -138,6 +258,6 @@ export async function attemptAutoDeleteFlaggedMessage(
       },
       "Auto-delete failed",
     );
-    return { deleted: false, skipped: true, reason: "error" };
+    return result;
   }
 }
