@@ -1,9 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Component, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DashboardLayout } from "./components/layout/DashboardLayout";
 import { LivePanel } from "./components/live/LivePanel";
 import { MessagesPanel } from "./components/messages/MessagesPanel";
-import { Tabs, TabsContent } from "./components/ui/tabs";
-import { AnalyticsPanel } from "./components/analytics";
 import { AuthOverlay } from "./components/layout/AuthOverlay";
 import { useDashboardSocket } from "./hooks/useDashboardSocket";
 import { mergeMessages, useMessages } from "./hooks/useMessages";
@@ -13,6 +11,28 @@ import { useVoiceControl } from "./hooks/useVoiceControl";
 import type { MessageRecord } from "./types/messages";
 import type { DashboardTab } from "./types/ui";
 import type { ActiveSpeaker } from "./types/voice";
+
+const AnalyticsPanel = lazy(() => import("./components/analytics").then((module) => ({ default: module.AnalyticsPanel })));
+
+class AnalyticsErrorBoundary extends Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  override render() {
+    if (this.state.hasError) {
+      return (
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-6 text-sm text-destructive">
+          Analytics failed to load. The rest of the dashboard is still available.
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 const SAMPLE_RATE = 24000;
 const CHANNELS = 1;
@@ -164,71 +184,80 @@ export default function App() {
       onTabChange={(tab) => patchUIState({ activeTab: tab })}
     >
       <div className="md:hidden">
-        <Tabs value={activeTab} onValueChange={(value) => patchUIState({ activeTab: value as DashboardTab })}>
           <div className="mb-4 grid grid-cols-4 gap-1.5 rounded-2xl bg-muted p-1">
             {tabs.map((tab) => (
-              <button key={tab} className={`rounded-xl px-2 py-2 text-xs font-medium ${activeTab === tab ? "bg-background text-foreground" : "text-muted-foreground"}`} onClick={() => patchUIState({ activeTab: tab })}>
+            <button
+              key={tab}
+              type="button"
+              className={`rounded-xl px-2 py-2 text-xs font-medium ${activeTab === tab ? "bg-background text-foreground" : "text-muted-foreground"}`}
+              onClick={() => patchUIState({ activeTab: tab })}
+            >
                 {tab}
               </button>
             ))}
           </div>
-        </Tabs>
       </div>
-      <Tabs value={activeTab} onValueChange={(value) => patchUIState({ activeTab: value as DashboardTab })}>
-        <TabsContent value="live">
-          {!isAuthenticated ? (
-            <AuthOverlay onAuthenticated={() => setIsAuthenticated(true)} />
-          ) : (
-            <LivePanel
+      {activeTab === "live" ? (
+        !isAuthenticated ? (
+          <AuthOverlay onAuthenticated={() => setIsAuthenticated(true)} />
+        ) : (
+          <LivePanel
+            guilds={voice.guilds}
+            voiceChannels={voice.voiceChannels}
+            selectedGuild={selectedVoiceGuild}
+            selectedChannel={selectedVoiceChannel}
+            status={voice.voiceStatus}
+            voiceLoading={voice.loading}
+            activeSpeakers={activeSpeakers}
+            levels={levels}
+            isListening={isListening}
+            isStreaming={isStreaming}
+            mediaState={media.mediaState}
+            mediaLoading={media.loading}
+            onGuildChange={(guildId) => patchUIState({ selectedVoiceGuild: guildId, selectedVoiceChannel: "" })}
+            onChannelChange={(channelId) => patchUIState({ selectedVoiceChannel: channelId })}
+            onJoin={() => voice.joinVoice(selectedVoiceGuild, selectedVoiceChannel)}
+            onDisconnect={() => voice.leaveVoice()}
+            onListenToggle={toggleListening}
+            onStreamingToggle={toggleStreaming}
+            onQueueMusic={(source) => media.enqueue(source, "music")}
+            onStartScreen={(source) => media.enqueue(source, "screen")}
+            onSkip={media.skip}
+            onStop={media.stop}
+            onVolumeChange={media.setVolume}
+          />
+        )
+      ) : activeTab === "messages" ? (
+        <MessagesPanel
+          guilds={voice.guilds}
+          channels={voice.textChannels}
+          selectedGuild={selectedTextGuild}
+          selectedChannel={selectedTextChannel}
+          messages={messages.messages}
+          onGuildChange={(guildId) => patchUIState({ selectedTextGuild: guildId, selectedTextChannel: "" })}
+          onChannelChange={(channelId) => patchUIState({ selectedTextChannel: channelId })}
+          onReanalyze={messages.reanalyze}
+        />
+      ) : (
+        <AnalyticsErrorBoundary>
+          <Suspense
+            fallback={
+              <div className="rounded-2xl border border-dashed border-border p-8 text-sm text-muted-foreground">
+                Loading analytics...
+              </div>
+            }
+          >
+            <AnalyticsPanel
               guilds={voice.guilds}
-              voiceChannels={voice.voiceChannels}
-              selectedGuild={selectedVoiceGuild}
-              selectedChannel={selectedVoiceChannel}
-              status={voice.voiceStatus}
-              voiceLoading={voice.loading}
-              activeSpeakers={activeSpeakers}
-              levels={levels}
-              isListening={isListening}
-              isStreaming={isStreaming}
-              mediaState={media.mediaState}
-              mediaLoading={media.loading}
-              onGuildChange={(guildId) => patchUIState({ selectedVoiceGuild: guildId, selectedVoiceChannel: "" })}
-              onChannelChange={(channelId) => patchUIState({ selectedVoiceChannel: channelId })}
-              onJoin={() => voice.joinVoice(selectedVoiceGuild, selectedVoiceChannel)}
-              onDisconnect={() => voice.leaveVoice()}
-              onListenToggle={toggleListening}
-              onStreamingToggle={toggleStreaming}
-              onQueueMusic={(source) => media.enqueue(source, "music")}
-              onStartScreen={(source) => media.enqueue(source, "screen")}
-              onSkip={media.skip}
-              onStop={media.stop}
-              onVolumeChange={media.setVolume}
+              channels={voice.textChannels}
+              selectedGuild={selectedTextGuild}
+              selectedChannel={selectedTextChannel}
+              onGuildChange={(guildId) => patchUIState({ selectedTextGuild: guildId, selectedTextChannel: "" })}
+              onChannelChange={(channelId) => patchUIState({ selectedTextChannel: channelId })}
             />
-          )}
-        </TabsContent>
-        <TabsContent value="messages">
-          <MessagesPanel
-            guilds={voice.guilds}
-            channels={voice.textChannels}
-            selectedGuild={selectedTextGuild}
-            selectedChannel={selectedTextChannel}
-            messages={messages.messages}
-            onGuildChange={(guildId) => patchUIState({ selectedTextGuild: guildId, selectedTextChannel: "" })}
-            onChannelChange={(channelId) => patchUIState({ selectedTextChannel: channelId })}
-            onReanalyze={messages.reanalyze}
-          />
-        </TabsContent>
-        <TabsContent value="analytics">
-          <AnalyticsPanel
-            guilds={voice.guilds}
-            channels={voice.textChannels}
-            selectedGuild={selectedTextGuild}
-            selectedChannel={selectedTextChannel}
-            onGuildChange={(guildId) => patchUIState({ selectedTextGuild: guildId, selectedTextChannel: "" })}
-            onChannelChange={(channelId) => patchUIState({ selectedTextChannel: channelId })}
-          />
-        </TabsContent>
-      </Tabs>
+          </Suspense>
+        </AnalyticsErrorBoundary>
+      )}
     </DashboardLayout>
   );
 }
