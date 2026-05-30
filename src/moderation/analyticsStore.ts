@@ -758,8 +758,8 @@ export async function getDailyTrend(input: {
         AND created_at >= ?
         AND deleted_at IS NULL
         ${channelId ? `AND (channel_id = ? OR thread_id = ?)` : ""}
-      GROUP BY date(created_at / 1000, 'unixepoch')
-      ORDER BY date ASC
+      GROUP BY 1
+      ORDER BY 1 ASC
       `,
       channelId ? [guildId, since, channelId, channelId] : [guildId, since],
     );
