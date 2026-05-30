@@ -515,8 +515,12 @@ export async function getTopViolators(input: {
         AND deleted_at IS NULL
         ${channelId ? `AND (channel_id = ? OR thread_id = ?)` : ""}
       GROUP BY user_id, username, avatar_url
-      HAVING flagged_count > 0 OR warned_count > 0
-      ORDER BY (flagged_count * 3 + warned_count) DESC
+      HAVING count(case when ai_status = 'flagged' then 1 end) > 0
+         OR count(case when ai_status = 'warn' then 1 end) > 0
+      ORDER BY (
+        count(case when ai_status = 'flagged' then 1 end) * 3
+        + count(case when ai_status = 'warn' then 1 end)
+      ) DESC
       LIMIT ?
       `,
       channelId
