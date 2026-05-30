@@ -136,11 +136,13 @@ const configSchema = z
       .optional()
       .transform((v) => v === "true")
       .default(true),
-    AUTO_DELETE_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.50),
+    AUTO_DELETE_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.5),
     AUTO_DELETE_ALLOWED_SEVERITIES: z.string().default("critical,high,medium"),
     AUTO_DELETE_ALLOWED_CATEGORIES: z.string().default(""),
     AUTO_DELETE_EXCLUDED_CHANNEL_IDS: z.string().default(""),
     AUTO_DELETE_EXCLUDED_USER_IDS: z.string().default(""),
+    STICKER_CACHE_DIR: z.string().default("./sticker-cache"),
+    STICKER_CACHE_MAX_SIZE_MB: z.coerce.number().int().positive().default(100),
     RETENTION_MESSAGES_DAYS: z.coerce.number().int().min(0).default(0),
     RETENTION_ATTACHMENTS_DAYS: z.coerce.number().int().min(0).default(0),
     RETENTION_VOICE_DAYS: z.coerce.number().int().min(0).default(0),

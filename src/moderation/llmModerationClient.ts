@@ -6,6 +6,16 @@ import { createChildLogger } from "../logger.js";
 import { retryWithBackoff } from "../retry.js";
 import { formatModerationTextEvidenceForPrompt } from "./indonesianTextNormalizer.js";
 import { extractMessageMediaEvidence } from "./messageMetadata.js";
+import {
+  buildStickerTextOnlyWarning,
+  buildStickerVisionPrompt,
+} from "./stickerPrompt.js";
+import {
+  getStickerFromCache,
+  initStickerCache,
+  isStickerCacheReady,
+  setStickerInCache,
+} from "./stickerCache.js";
 import type {
   AnalysisResult,
   AttachmentRecord,
@@ -50,7 +60,10 @@ function hasDeferralAnalysis(analysis: string): boolean {
 }
 
 function clampScore(value: number | undefined, fallback = 0): number {
-  return Math.max(0, Math.min(1, Number.isFinite(value) ? (value as number) : fallback));
+  return Math.max(
+    0,
+    Math.min(1, Number.isFinite(value) ? (value as number) : fallback),
+  );
 }
 
 function deriveSeverity(
@@ -272,7 +285,8 @@ export function parseModerationResponse(
 
     const normalizedScore = clampScore(score);
     const normalizedConfidence = clampScore(confidence, normalizedScore);
-    const normalizedSeverity = severity ?? deriveSeverity(status, normalizedScore);
+    const normalizedSeverity =
+      severity ?? deriveSeverity(status, normalizedScore);
 
     return {
       messageId: finalId,
@@ -284,7 +298,8 @@ export function parseModerationResponse(
       severity: normalizedSeverity,
       confidence: normalizedConfidence,
       recommendedAction:
-        recommended_action ?? deriveRecommendedAction(status, normalizedSeverity),
+        recommended_action ??
+        deriveRecommendedAction(status, normalizedSeverity),
       policyVersion: policy_version ?? "default-2026-05-30",
       evidence: evidence ?? [],
     };
@@ -426,6 +441,19 @@ export async function runModerationAnalysis(
     throw new Error("No targets provided for analysis");
   }
 
+  // Lazy init sticker cache on first run
+  if (!isStickerCacheReady()) {
+    await initStickerCache({
+      cacheDir: config.STICKER_CACHE_DIR,
+      maxSizeBytes: config.STICKER_CACHE_MAX_SIZE_MB * 1024 * 1024,
+    }).catch((err) => {
+      log.warn(
+        { error: err instanceof Error ? err.message : String(err) },
+        "Sticker cache init failed — continuing without cache",
+      );
+    });
+  }
+
   const targetIds = targets.map((t) => t.id);
 
   // Build a lookup: message_id → list of resolved base64 image parts
@@ -433,6 +461,7 @@ export async function runModerationAnalysis(
     type: "image_url";
     image_url: { url: string };
     sourceLabel: string;
+    stickerName?: string;
   };
   type MessageImageMap = Map<string, MessageImagePart[]>;
 
@@ -600,6 +629,7 @@ export async function runModerationAnalysis(
           messageId: msg.id,
           url: sticker.url,
           label: `[gambar di atas adalah sticker "${sticker.name}" dari pesan id=${msg.id}]`,
+          stickerName: sticker.name,
         })),
       ...evidence.embeds.flatMap((embed) =>
         [
@@ -618,8 +648,14 @@ export async function runModerationAnalysis(
               }
             : null,
         ].filter(
-          (candidate): candidate is { messageId: string; url: string; label: string } =>
-            candidate !== null,
+          (
+            candidate,
+          ): candidate is {
+            messageId: string;
+            url: string;
+            label: string;
+            stickerName?: string;
+          } => candidate !== null,
         ),
       ),
     ];
@@ -627,25 +663,82 @@ export async function runModerationAnalysis(
 
   const remainingImageSlots = Math.max(
     0,
-    8 - Array.from(messageImageMap.values()).reduce((sum, imgs) => sum + imgs.length, 0),
+    8 -
+      Array.from(messageImageMap.values()).reduce(
+        (sum, imgs) => sum + imgs.length,
+        0,
+      ),
   );
 
   await Promise.all(
-    mediaImageCandidates.slice(0, remainingImageSlots).map(async (candidate) => {
-      const result = await fetchUrlSafely(candidate.url);
-      if (result.type !== "image" || !result.data || !result.mimeType) return;
+    mediaImageCandidates
+      .slice(0, remainingImageSlots)
+      .map(async (candidate) => {
+        // --- Sticker cache check ---
+        if (candidate.stickerName && isStickerCacheReady()) {
+          try {
+            const cached = await getStickerFromCache(candidate.stickerName);
+            if (cached) {
+              const part: MessageImagePart = {
+                type: "image_url",
+                image_url: {
+                  url: `data:${cached.mimeType};base64,${cached.base64}`,
+                },
+                sourceLabel: candidate.label,
+                stickerName: candidate.stickerName,
+              };
+              const existing = messageImageMap.get(candidate.messageId) ?? [];
+              existing.push(part);
+              messageImageMap.set(candidate.messageId, existing);
+              log.debug(
+                { stickerName: candidate.stickerName },
+                "Sticker cache HIT — skipped fetch",
+              );
+              return;
+            }
+          } catch (err) {
+            log.debug(
+              {
+                stickerName: candidate.stickerName,
+                error: err instanceof Error ? err.message : String(err),
+              },
+              "Sticker cache read error — falling back to fetch",
+            );
+          }
+        }
 
-      const part: MessageImagePart = {
-        type: "image_url",
-        image_url: {
-          url: `data:${result.mimeType};base64,${result.data.toString("base64")}`,
-        },
-        sourceLabel: candidate.label,
-      };
-      const existing = messageImageMap.get(candidate.messageId) ?? [];
-      existing.push(part);
-      messageImageMap.set(candidate.messageId, existing);
-    }),
+        // --- Cache miss or non-sticker: fetch normally ---
+        const result = await fetchUrlSafely(candidate.url);
+        if (result.type !== "image" || !result.data || !result.mimeType) return;
+
+        const base64 = result.data.toString("base64");
+
+        // Cache on success (sticker only)
+        if (candidate.stickerName) {
+          setStickerInCache(
+            candidate.stickerName,
+            base64,
+            result.mimeType,
+          ).catch((err) => {
+            log.warn(
+              { error: err instanceof Error ? err.message : String(err) },
+              "Failed to cache sticker — continuing without cache",
+            );
+          });
+        }
+
+        const part: MessageImagePart = {
+          type: "image_url",
+          image_url: {
+            url: `data:${result.mimeType};base64,${base64}`,
+          },
+          sourceLabel: candidate.label,
+          stickerName: candidate.stickerName,
+        };
+        const existing = messageImageMap.get(candidate.messageId) ?? [];
+        existing.push(part);
+        messageImageMap.set(candidate.messageId, existing);
+      }),
   );
 
   const analyzeSingleMediaImage = async (
@@ -661,7 +754,9 @@ export async function runModerationAnalysis(
             content: [
               {
                 type: "text",
-                text: `Analisis media Discord berikut sebagai evidence moderasi. ${image.sourceLabel}\nJelaskan isi visual, teks yang terlihat, konteks risiko, dan apakah ada indikasi spam, scam, SARA, harassment, sexual content, violence, self-harm, doxxing, NSFW, gore, atau illegal content. Jawab Bahasa Indonesia, maksimal 3 kalimat. Jangan bilang kurang konteks atau perlu admin cek; berikan observasi langsung dari media.`,
+                text: image.stickerName
+                  ? buildStickerVisionPrompt(image.stickerName, messageId)
+                  : `Analisis media Discord berikut sebagai evidence moderasi. ${image.sourceLabel}\nJelaskan isi visual, teks yang terlihat, konteks risiko, dan apakah ada indikasi spam, scam, SARA, harassment, sexual content, violence, self-harm, doxxing, NSFW, gore, atau illegal content. Jawab Bahasa Indonesia, maksimal 3 kalimat. Jangan bilang kurang konteks atau perlu admin cek; berikan observasi langsung dari media.`,
               },
               { type: "image_url", image_url: image.image_url },
             ],
@@ -703,7 +798,6 @@ export async function runModerationAnalysis(
     ),
   );
 
-
   // -------------------------------------------------------------------------
   // System prompt — Indonesian-first, English as secondary language.
   //
@@ -725,7 +819,16 @@ export async function runModerationAnalysis(
 ## Instruksi Analisis Media
 Gambar, sticker, embed image, preview link, dan attachment sudah dianalisis lewat request media terpisah sebelum batch utama.
 Gunakan baris "Media analysis" sebagai evidence visual utama dalam keputusan moderasi batch ini.
-Sticker wajib diperlakukan sebagai image evidence, bukan sekadar nama sticker.
+
+## Panduan Khusus Sticker
+- Sticker Discord adalah media kartun/meme/ilustrasi, BUKAN foto atau video nyata.
+- Sticker sering bersifat humor, satir, atau ekspresi emosi yang dilebih-lebihkan.
+- Gambar sticker bisa menampilkan adegan kartun yang terlihat "keras" (tokoh kartun menginjak sesuatu, ledakan komik, senjata kartun) — itu SENI KARTUN, bukan dokumentasi kekerasan nyata.
+- Nama sticker yang terdengar provokatif (mis. "Singa injek pejabat", "Bom atom", dll) adalah konteks satir/humor. JANGAN flag "violence", "harassment", atau "sara" berdasarkan nama sticker saja tanpa melihat gambar.
+- Jika sticker evidence hanya tersedia sebagai nama (gambar gagal diunduh), abaikan sebagai evidence pelanggaran — nama sticker saja TIDAK cukup untuk flag.
+- Terapkan standar yang lebih longgar untuk konten kartun/meme dibanding foto/video nyata.
+
+Sticker yang berhasil diunduh WAJIB diperlakukan sebagai image evidence, bukan sekadar nama sticker.
 Jangan abaikan link: gunakan isi web, preview image, atau hasil analisis media link bila tersedia.
 `;
 
@@ -830,7 +933,8 @@ CRITICAL: "message_id" HARUS berupa STRING (dibungkus tanda kutip ganda). Jangan
         const content = msg.edited_content ?? msg.content;
         const webTexts = messageWebTextMap.get(msg.id) ?? [];
         const mediaAnalyses = messageMediaAnalysisMap.get(msg.id) ?? [];
-        const webContext = webTexts.length > 0 ? `\n${webTexts.join("\n")}` : "";
+        const webContext =
+          webTexts.length > 0 ? `\n${webTexts.join("\n")}` : "";
         const textEvidence = textEvidenceMap.get(msg.id) ?? "";
         const textContext = textEvidence ? `\n${textEvidence}` : "";
         const mediaAnalysisContext =
@@ -838,11 +942,17 @@ CRITICAL: "message_id" HARUS berupa STRING (dibungkus tanda kutip ganda). Jangan
         const mediaEvidence = extractMessageMediaEvidence(msg.metadata);
         const mediaContext = [
           mediaEvidence.stickers.length > 0
-            ? `[sticker evidence: ${mediaEvidence.stickers.map((s) => `${s.name} (${s.url})`).join(" | ")}]`
+            ? mediaEvidence.stickers
+                .map((s) => buildStickerTextOnlyWarning(s.name, s.url))
+                .join(" ")
             : null,
           mediaEvidence.embeds.length > 0
             ? `[embed evidence: ${mediaEvidence.embeds
-                .map((e) => [e.title, e.description, e.url, e.image, e.thumbnail].filter(Boolean).join(" | "))
+                .map((e) =>
+                  [e.title, e.description, e.url, e.image, e.thumbnail]
+                    .filter(Boolean)
+                    .join(" | "),
+                )
                 .join(" || ")}]`
             : null,
         ]
