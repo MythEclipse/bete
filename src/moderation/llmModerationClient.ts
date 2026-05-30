@@ -805,7 +805,17 @@ CRITICAL: "message_id" HARUS berupa STRING (dibungkus tanda kutip ganda). Jangan
   let lastParseError: string | null = null;
   let lastInvalidContent: string | null = null;
 
-  const buildMessageContent = (): string => {
+  // Pre-compute text evidence for all targets in parallel
+  const textEvidenceMap = new Map<string, string>();
+  await Promise.all(
+    targets.map(async (msg) => {
+      const content = msg.edited_content ?? msg.content;
+      const evidence = await formatModerationTextEvidenceForPrompt(content);
+      textEvidenceMap.set(msg.id, evidence);
+    }),
+  );
+
+  const buildMessageContent = async (): Promise<string> => {
     const correction = lastParseError
       ? {
           error: lastParseError,
@@ -821,7 +831,7 @@ CRITICAL: "message_id" HARUS berupa STRING (dibungkus tanda kutip ganda). Jangan
         const webTexts = messageWebTextMap.get(msg.id) ?? [];
         const mediaAnalyses = messageMediaAnalysisMap.get(msg.id) ?? [];
         const webContext = webTexts.length > 0 ? `\n${webTexts.join("\n")}` : "";
-        const textEvidence = formatModerationTextEvidenceForPrompt(content);
+        const textEvidence = textEvidenceMap.get(msg.id) ?? "";
         const textContext = textEvidence ? `\n${textEvidence}` : "";
         const mediaAnalysisContext =
           mediaAnalyses.length > 0 ? `\n${mediaAnalyses.join("\n")}` : "";
@@ -856,7 +866,7 @@ CRITICAL: "message_id" HARUS berupa STRING (dibungkus tanda kutip ganda). Jangan
             messages: [
               {
                 role: "user",
-                content: buildMessageContent(),
+                content: await buildMessageContent(),
               },
             ],
             temperature: 0.2,

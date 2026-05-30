@@ -114,6 +114,17 @@ const configSchema = z
       .int()
       .positive()
       .default(10),
+    /** NVIDIA Nemotron-3 Content Safety API key for badword detection. */
+    NVIDIA_NEMOTRON_API_KEY: z.string().optional(),
+    /** NVIDIA Nemotron model identifier. */
+    NVIDIA_NEMOTRON_MODEL: z
+      .string()
+      .default("nvidia/nemotron-3-content-safety"),
+    /** NVIDIA Nemotron API base URL. */
+    NVIDIA_NEMOTRON_BASE_URL: z
+      .string()
+      .url()
+      .default("https://integrate.api.nvidia.com/v1/chat/completions"),
     AUTO_DELETE_FLAGGED_ENABLED: z
       .string()
       .optional()

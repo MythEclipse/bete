@@ -42,20 +42,20 @@ describe("normalizeIndonesianSlang", () => {
 });
 
 describe("detectIndonesianBadwords", () => {
-  it("detects known badword", () => {
-    const badwords = detectIndonesianBadwords("kontol banget");
+  it("detects known badword via local fallback", async () => {
+    const badwords = await detectIndonesianBadwords("kontol banget");
     expect(badwords).toContain("kontol");
   });
 
-  it("returns empty array for safe slang", () => {
-    const badwords = detectIndonesianBadwords("woy hadeh gua");
+  it("returns empty array for safe slang", async () => {
+    const badwords = await detectIndonesianBadwords("woy hadeh gua");
     expect(badwords).toHaveLength(0);
   });
 });
 
 describe("buildModerationTextEvidence", () => {
-  it("produces correct evidence for woy with emoji", () => {
-    const evidence = buildModerationTextEvidence(
+  it("produces correct evidence for woy with emoji", async () => {
+    const evidence = await buildModerationTextEvidence(
       "Bersiaplah woy <:hadeh:1217434294281048185>",
     );
     expect(evidence.normalized).toContain("[emoji:hadeh]");
@@ -66,16 +66,16 @@ describe("buildModerationTextEvidence", () => {
     expect(evidence.notes.some((n) => n.includes("casual"))).toBe(true);
   });
 
-  it("detects badword when present", () => {
-    const evidence = buildModerationTextEvidence("anjing loe kontol");
+  it("detects badword when present", async () => {
+    const evidence = await buildModerationTextEvidence("anjing loe kontol");
     expect(evidence.hasBadwords).toBe(true);
     expect(evidence.notes.some((n) => n.includes("badword detected"))).toBe(true);
   });
 });
 
 describe("formatModerationTextEvidenceForPrompt", () => {
-  it("returns prompt evidence for slang + emoji", () => {
-    const formatted = formatModerationTextEvidenceForPrompt(
+  it("returns prompt evidence for slang + emoji", async () => {
+    const formatted = await formatModerationTextEvidenceForPrompt(
       "Bersiaplah woy <:hadeh:1217434294281048185>",
     );
     expect(formatted).toContain("[normalized_text:");
@@ -84,8 +84,8 @@ describe("formatModerationTextEvidenceForPrompt", () => {
     expect(formatted).toContain("no Indonesian badword detected");
   });
 
-  it("includes normalized text even for clean input", () => {
-    const formatted = formatModerationTextEvidenceForPrompt("Halo semua");
+  it("includes normalized text even for clean input", async () => {
+    const formatted = await formatModerationTextEvidenceForPrompt("Halo semua");
     expect(formatted).toContain("[normalized_text:");
     expect(formatted).toContain("no Indonesian badword detected");
   });

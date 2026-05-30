@@ -9,8 +9,6 @@ import { retryWithBackoff } from "../retry.js";
 import { attemptAutoDeleteFlaggedMessage } from "./autoDeleteManager.js";
 import {
   buildConversationContext,
-  estimateTokens,
-  formatMessageForPrompt,
 } from "./conversationContext.js";
 import { runModerationAnalysis } from "./llmModerationClient.js";
 import {
@@ -157,6 +155,8 @@ export function getConversationKey(message: MessageRecord): string {
 /**
  * Picks a batch of messages within a token budget.
  * `tokensPerMessage` accounts for JSON structure overhead around each entry.
+ * Uses a rough character-based token estimate (avoids async formatMessageForPrompt
+ * since this function runs in a synchronous promise chain).
  */
 export function pickBatchWithinBudget(
   messages: MessageRecord[],
@@ -167,8 +167,9 @@ export function pickBatchWithinBudget(
   let usedTokens = 0;
 
   for (const msg of messages) {
-    const formatted = formatMessageForPrompt(msg, "target");
-    const msgTokens = estimateTokens(formatted) + tokensPerMessage;
+    const content = msg.edited_content ?? msg.content;
+    // Rough token estimate: ~3 chars per token + metadata overhead
+    const msgTokens = Math.ceil(content.length / 3) + tokensPerMessage;
 
     if (usedTokens + msgTokens <= maxTokens) {
       batch.push(msg);
@@ -238,7 +239,7 @@ async function processIndividualFallback(
       limit: config.AI_ANALYSIS_CONTEXT_MESSAGE_LIMIT,
     });
 
-    const contextLines = buildConversationContext({
+    const contextLines = await buildConversationContext({
       contextBefore,
       targets: [message],
       maxTokens: config.AI_ANALYSIS_MAX_CONTEXT_TOKENS,
