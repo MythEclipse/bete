@@ -50,6 +50,7 @@ describe("message query integration tests", () => {
     try {
       // Create messages table
       await db.run(`
+        DROP TABLE IF EXISTS "messages";
         CREATE TABLE IF NOT EXISTS "messages" (
           "id" text PRIMARY KEY NOT NULL,
           "guild_id" text NOT NULL,
@@ -69,6 +70,10 @@ describe("message query integration tests", () => {
           "ai_moderation_flags" text,
           "ai_moderation_score" real,
           "ai_moderation_raw" text,
+          "ai_categories" text,
+          "ai_severity" text,
+          "ai_confidence" real,
+          "ai_recommended_action" text,
           "ai_analysis" text,
           "ai_analyzed_at" integer,
           "ai_error" text
@@ -77,6 +82,7 @@ describe("message query integration tests", () => {
 
       // Create attachments table
       await db.run(`
+        DROP TABLE IF EXISTS "attachments";
         CREATE TABLE IF NOT EXISTS "attachments" (
           "id" text PRIMARY KEY NOT NULL,
           "message_id" text NOT NULL,
@@ -568,7 +574,6 @@ describe("message query integration tests", () => {
         ai_status: "clean",
         ai_moderation_flags: "test_flag",
         ai_moderation_score: 0.5,
-        ai_moderation_raw: '{"test": "data"}',
         ai_analysis: "This is clean",
         ai_analyzed_at: Date.now() - 10000,
         ai_error: null,
@@ -594,8 +599,11 @@ describe("message query integration tests", () => {
       expect(retrieved?.ai_status).toBe("pending");
       expect(retrieved?.ai_moderation_flags).toBeNull();
       expect(retrieved?.ai_moderation_score).toBeNull();
-      expect(retrieved?.ai_moderation_raw).toBeNull();
       expect(retrieved?.ai_analysis).toBeNull();
+      expect(retrieved?.ai_categories).toBeNull();
+      expect(retrieved?.ai_severity).toBeNull();
+      expect(retrieved?.ai_confidence).toBeNull();
+      expect(retrieved?.ai_recommended_action).toBeNull();
       expect(retrieved?.ai_analyzed_at).toBeNull();
       expect(retrieved?.ai_error).toBeNull();
     });

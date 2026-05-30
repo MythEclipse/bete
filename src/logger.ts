@@ -29,7 +29,7 @@ const consoleFormat = winston.format.printf((info) => {
   const { level, message, timestamp, context, ...metadata } = info;
   const contextLabel = context ? ` [${String(context)}]` : "";
   const metadataText = Object.keys(metadata).length
-    ? ` ${JSON.stringify(metadata)}`
+    ? ` ${JSON.stringify(formatLogMetadata(metadata))}`
     : "";
 
   return `${timestamp} ${level}${contextLabel}: ${message}${metadataText}`;

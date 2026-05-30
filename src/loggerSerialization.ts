@@ -50,7 +50,12 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> => {
   return prototype === Object.prototype || prototype === null;
 };
 
-export const serializeLogValue = (value: unknown): unknown => {
+export const serializeLogValue = (
+  value: unknown,
+  _seen: WeakSet<object> = new WeakSet(),
+): unknown => {
+  if (value === null || value === undefined) return value;
+
   if (value instanceof Error) {
     return serializeError(value);
   }
@@ -63,17 +68,33 @@ export const serializeLogValue = (value: unknown): unknown => {
     return value.toString();
   }
 
+  if (typeof value === "object") {
+    if (_seen.has(value as object)) {
+      return "[Circular]";
+    }
+    _seen.add(value as object);
+  }
+
   if (Array.isArray(value)) {
-    return value.map(serializeLogValue);
+    return value.map((item) => serializeLogValue(item, _seen));
   }
 
   if (isPlainObject(value)) {
     return Object.fromEntries(
       Object.entries(value).map(([key, nestedValue]) => [
         key,
-        serializeLogValue(nestedValue),
+        serializeLogValue(nestedValue, _seen),
       ]),
     );
+  }
+
+  // Non-plain objects (ClientRequest, IncomingMessage, etc.) — serialize as safe string
+  if (typeof value === "object") {
+    try {
+      return `[Object ${(value as any)?.constructor?.name ?? "unknown"}]`;
+    } catch {
+      return "[Object]";
+    }
   }
 
   return value;

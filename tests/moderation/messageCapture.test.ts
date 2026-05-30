@@ -63,6 +63,7 @@ function createMessage(id = "message-1"): TestMessage {
 
 async function createTables() {
   const db = getTestDatabase();
+  db.run(`DROP TABLE IF EXISTS "messages"`);
   db.run(`
     CREATE TABLE IF NOT EXISTS "messages" (
       "id" text PRIMARY KEY NOT NULL,
@@ -84,11 +85,16 @@ async function createTables() {
       "ai_moderation_score" real,
       "ai_moderation_raw" text,
       "ai_analysis" text,
+      "ai_categories" text,
+      "ai_severity" text,
+      "ai_confidence" real,
+      "ai_recommended_action" text,
       "ai_analyzed_at" integer,
       "ai_error" text
     )
   `);
   db.run(`
+    DROP TABLE IF EXISTS "attachments";
     CREATE TABLE IF NOT EXISTS "attachments" (
       "id" text PRIMARY KEY NOT NULL,
       "message_id" text NOT NULL,

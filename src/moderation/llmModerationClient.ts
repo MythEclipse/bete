@@ -33,22 +33,22 @@ const RecommendedActionSchema = z.enum([
   "escalate",
 ]);
 
+const ResultItemSchema = z.object({
+  message_id: z.union([z.string(), z.number()]).transform(String),
+  status: z.enum(["clean", "warn", "flagged"]),
+  flags: z.array(z.string()).optional(),
+  score: z.number(),
+  analysis: z.string().nullable().optional(),
+  categories: z.array(z.string()).optional(),
+  severity: SeveritySchema.optional(),
+  confidence: z.number().optional(),
+  recommended_action: RecommendedActionSchema.optional(),
+  policy_version: z.string().optional(),
+  evidence: z.array(z.string()).optional(),
+});
+
 const ModerationResponseSchema = z.object({
-  results: z.array(
-    z.object({
-      message_id: z.union([z.string(), z.number()]).transform(String),
-      status: z.enum(["clean", "warn", "flagged"]).catch("clean"),
-      flags: z.array(z.string()).catch([]),
-      score: z.number().catch(0),
-      analysis: z.string().catch(""),
-      categories: z.array(z.string()).optional().catch(undefined),
-      severity: SeveritySchema.optional().catch(undefined),
-      confidence: z.number().optional().catch(undefined),
-      recommended_action: RecommendedActionSchema.optional().catch(undefined),
-      policy_version: z.string().optional().catch(undefined),
-      evidence: z.array(z.string()).optional().catch(undefined),
-    }),
-  ),
+  results: z.array(ResultItemSchema),
 });
 
 const log = createChildLogger("llmModerationClient");
@@ -232,13 +232,26 @@ export function parseModerationResponse(
   if (Array.isArray(parsed)) {
     parsed = { results: parsed };
   } else if (parsed && typeof parsed === "object" && !("results" in parsed)) {
-    const arrayKey = Object.keys(parsed).find((key) =>
-      Array.isArray((parsed as any)[key]),
-    );
-    if (arrayKey) {
-      parsed.results = (parsed as any)[arrayKey];
-    } else {
+    // If the object directly looks like a result item (has message_id), wrap it
+    // BEFORE checking for array keys. This prevents flags:[] from being
+    // mistaken as the results array on a single-object response.
+    if ("message_id" in parsed) {
       parsed = { results: [parsed] };
+    } else {
+      // Find the first non-empty array key whose elements are objects with message_id
+      const arrayKey = Object.keys(parsed).find((key) => {
+        const val = (parsed as any)[key];
+        return (
+          Array.isArray(val) &&
+          val.length > 0 &&
+          val.every((item: unknown) => typeof item === "object" && item !== null && "message_id" in (item as any))
+        );
+      });
+      if (arrayKey) {
+        parsed.results = (parsed as any)[arrayKey];
+      } else {
+        parsed = { results: [parsed] };
+      }
     }
   }
 
@@ -272,12 +285,16 @@ export function parseModerationResponse(
     }
 
     if (foundIds.has(finalId)) {
-      return null; // Ignore duplicates safely
+      throw new Error(
+        `Duplicate message_id in moderation response: ${finalId}`,
+      );
     }
 
     foundIds.add(finalId);
 
-    if (hasDeferralAnalysis(analysis)) {
+    const coalescedAnalysis = analysis ?? "";
+
+    if (hasDeferralAnalysis(coalescedAnalysis)) {
       throw new Error(
         `Deferral analysis is not allowed for message ${finalId}; return a direct moderation decision`,
       );
@@ -291,10 +308,10 @@ export function parseModerationResponse(
     return {
       messageId: finalId,
       status: status as "clean" | "warn" | "flagged",
-      flags,
+      flags: flags ?? [],
       score: normalizedScore,
-      analysis,
-      categories: categories ?? flags,
+      analysis: coalescedAnalysis,
+      categories: categories ?? (flags ?? []),
       severity: normalizedSeverity,
       confidence: normalizedConfidence,
       recommendedAction:

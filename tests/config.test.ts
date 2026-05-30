@@ -10,9 +10,14 @@ afterEach(() => {
 
 describe("loadConfig", () => {
   it("loads required values and coerces optional values", async () => {
+    // dotenv/config loads from .env when config.ts is imported, so
+    // override the relevant env vars that would be inherited from there
     process.env = {
       ...originalEnv,
       DISCORD_TOKEN: "token",
+      GUILD_ID: undefined as unknown as string,
+      VOICE_CHANNEL_ID: undefined as unknown as string,
+      MONITOR_GUILD_ID: undefined as unknown as string,
       VERBOSE: "true",
       WEBSERVER_PORT: "4000",
       NODE_ENV: "test",

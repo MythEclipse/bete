@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildConversationPromptMessages } from "../../src/moderation/conversationContext";
+import {
+  buildConversationContext,
+  estimateTokens,
+  formatMessageForPrompt,
+} from "../../src/moderation/conversationContext";
 import type { MessageRecord } from "../../src/moderation/types";
 
 function message(
@@ -26,60 +30,49 @@ function message(
   };
 }
 
-describe("buildConversationPromptMessages", () => {
-  it("marks target messages and keeps chronological order", () => {
-    const lines = buildConversationPromptMessages({
+describe("buildConversationContext", () => {
+  it("returns only context lines (not targets) in chronological order", async () => {
+    const lines = await buildConversationContext({
       contextBefore: [message("a", "hello", 1)],
       targets: [message("b", "bad?", 2)],
       maxTokens: 1000,
     });
 
-    expect(lines).toContain(
-      "[context] id=a time=1970-01-01T00:00:00.001Z user=user-a: hello",
-    );
-    expect(lines).toContain(
-      "[target] id=b time=1970-01-01T00:00:00.002Z user=user-b: bad?",
-    );
-
-    const indexA = lines.findIndex((line) => line.includes("id=a"));
-    const indexB = lines.findIndex((line) => line.includes("id=b"));
-    expect(indexA).toBeLessThan(indexB);
+    // Only context lines are returned
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain("[context] id=a");
+    expect(lines[0]).toContain("user=user-a: hello");
   });
 
-  it("uses edited content when present", () => {
+  it("formats target messages using edited content when present", async () => {
     const target = message("b", "original", 2);
     target.edited_content = "edited";
 
-    const lines = buildConversationPromptMessages({
-      contextBefore: [],
-      targets: [target],
-      maxTokens: 1000,
-    });
-
-    expect(lines.some((line) => line.includes("edited"))).toBe(true);
-    expect(lines.some((line) => line.includes("original"))).toBe(false);
+    const line = await formatMessageForPrompt(target, "target");
+    expect(line).toContain("edited");
+    expect(line).not.toContain("original");
   });
 
-  it("empty targets returns only fitting context or empty string if no context", () => {
-    // Case 1: No context, no targets
-    const lines1 = buildConversationPromptMessages({
+  it("empty targets and no context returns empty array", async () => {
+    const lines = await buildConversationContext({
       contextBefore: [],
       targets: [],
       maxTokens: 1000,
     });
-    expect(lines1).toEqual([]);
+    expect(lines).toEqual([]);
+  });
 
-    // Case 2: Context but no targets
-    const lines2 = buildConversationPromptMessages({
+  it("returns context lines when targets are empty", async () => {
+    const lines = await buildConversationContext({
       contextBefore: [message("a", "hello", 1)],
       targets: [],
       maxTokens: 1000,
     });
-    expect(lines2).toHaveLength(1);
-    expect(lines2[0]).toContain("[context]");
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain("[context]");
   });
 
-  it("maxTokens budget includes target lines even when targets exceed budget", () => {
+  it("excludes context when target token budget consumes all available space", async () => {
     // Create targets that exceed budget
     const longContent = "x".repeat(500); // ~125 tokens
     const targets = [
@@ -88,24 +81,17 @@ describe("buildConversationPromptMessages", () => {
       message("t3", longContent, 3),
     ];
 
-    const lines = buildConversationPromptMessages({
+    const lines = await buildConversationContext({
       contextBefore: [message("c1", "context", 0)],
       targets,
-      maxTokens: 200, // Only 200 tokens, but targets alone are ~375
+      maxTokens: 200, // Targets alone consume ~375 tokens, no room for context
     });
 
-    // All targets should be included
-    expect(lines.some((line) => line.includes("id=t1"))).toBe(true);
-    expect(lines.some((line) => line.includes("id=t2"))).toBe(true);
-    expect(lines.some((line) => line.includes("id=t3"))).toBe(true);
-
     // Context should be excluded due to budget
-    expect(lines.some((line) => line.includes("id=c1"))).toBe(false);
+    expect(lines).toHaveLength(0);
   });
 
-  it("most recent context is kept when context budget is tight", () => {
-    // Create multiple context messages with different timestamps
-    // Use longer content to ensure they consume meaningful tokens
+  it("most recent context is kept when context budget is tight", async () => {
     const contextBefore = [
       message(
         "c1",
@@ -124,23 +110,22 @@ describe("buildConversationPromptMessages", () => {
       ),
     ];
 
-    const lines = buildConversationPromptMessages({
+    const lines = await buildConversationContext({
       contextBefore,
       targets: [message("t1", "target message", 4000)],
-      maxTokens: 90, // Very tight budget: target ~35 tokens, room for ~55 tokens of context (fits only c3)
+      maxTokens: 300, // Target ~80 tokens, c3 ~100 tokens, fits c3
     });
 
-    // Should include target
-    expect(lines.some((line) => line.includes("id=t1"))).toBe(true);
-
     // Should include newest context (c3) but not oldest (c1)
-    // With tight budget, only the most recent context should fit
     expect(lines.some((line) => line.includes("id=c3"))).toBe(true);
     expect(lines.some((line) => line.includes("id=c1"))).toBe(false);
 
-    // Verify chronological order is maintained
-    const indexT1 = lines.findIndex((line) => line.includes("id=t1"));
-    const indexC3 = lines.findIndex((line) => line.includes("id=c3"));
-    expect(indexC3).toBeLessThan(indexT1); // context before target
+    // Target lines should NOT be in the result (only context)
+    expect(lines.some((line) => line.includes("[target]"))).toBe(false);
+  });
+
+  it("estimateTokens provides reasonable estimates", () => {
+    expect(estimateTokens("hello")).toBeGreaterThan(0);
+    expect(estimateTokens("x".repeat(300))).toBeGreaterThan(100);
   });
 });
