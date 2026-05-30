@@ -5,19 +5,15 @@ import type { VoiceStatus } from "../../types/voice";
 import { Badge } from "../ui/badge";
 
 const titles: Record<DashboardTab, string> = {
-  voice: "Voice Control",
-  media: "Media Player",
+  live: "Voice, Media & Recordings",
   messages: "Messages & Moderation",
-  recordings: "Voice Recordings",
   analytics: "Analytics & Insights",
   review: "Moderation Review",
 };
 
 const subtitles: Record<DashboardTab, string> = {
-  voice: "Join voice channels and stream audio.",
-  media: "Queue music, videos, and screen share.",
+  live: "Join voice channels, play media, stream audio, and browse recordings.",
   messages: "Capture, analyse, and moderate Discord messages.",
-  recordings: "Browse recorded voice segments.",
   analytics: "Server moderation statistics and trends.",
   review: "Review AI-flagged messages for moderation.",
 };

@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DashboardLayout } from "./components/layout/DashboardLayout";
-import { MediaPanel } from "./components/media/MediaPanel";
+import { LivePanel } from "./components/live/LivePanel";
 import { MessagesPanel } from "./components/messages/MessagesPanel";
 import { ReviewPanel } from "./components/review/ReviewPanel";
 import { Tabs, TabsContent } from "./components/ui/tabs";
-import { VoicePanel } from "./components/voice/VoicePanel";
-import { RecordingsPanel } from "./components/recordings/RecordingsPanel";
-import { AuthOverlay } from "./components/layout/AuthOverlay";
 import { AnalyticsPanel } from "./components/analytics/AnalyticsPanel";
+import { AuthOverlay } from "./components/layout/AuthOverlay";
 import { useDashboardSocket } from "./hooks/useDashboardSocket";
 import { mergeMessages, useMessages } from "./hooks/useMessages";
 import { useMediaControl } from "./hooks/useMediaControl";
@@ -36,7 +34,7 @@ export default function App() {
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const userTimelinesRef = useRef(new Map<number, number>());
 
-  const activeTab = uiState.activeTab || "voice";
+  const activeTab = uiState.activeTab || "live";
   const selectedVoiceGuild = uiState.selectedVoiceGuild || uiState.selectedGuild || "";
   const selectedVoiceChannel = uiState.selectedVoiceChannel || "";
   const selectedTextGuild = uiState.selectedTextGuild || uiState.selectedGuild || "";
@@ -86,18 +84,9 @@ export default function App() {
 
   const stopStreamingLocal = useCallback(() => {
     setIsStreaming(false);
-    if (processorRef.current) {
-      processorRef.current.disconnect();
-      processorRef.current = null;
-    }
-    if (audioContextTransmitRef.current) {
-      audioContextTransmitRef.current.close();
-      audioContextTransmitRef.current = null;
-    }
-    if (streamRef.current) {
-      for (const track of streamRef.current.getTracks()) track.stop();
-      streamRef.current = null;
-    }
+    if (processorRef.current) { processorRef.current.disconnect(); processorRef.current = null; }
+    if (audioContextTransmitRef.current) { audioContextTransmitRef.current.close(); audioContextTransmitRef.current = null; }
+    if (streamRef.current) { for (const track of streamRef.current.getTracks()) track.stop(); streamRef.current = null; }
     setLevels(Array.from({ length: 32 }, () => 0.04));
   }, []);
 
@@ -106,29 +95,20 @@ export default function App() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
       setIsStreaming(true);
-
       const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
       const audioContext = new AudioContextCtor({ sampleRate: SAMPLE_RATE });
       audioContextTransmitRef.current = audioContext;
-
       const source = audioContext.createMediaStreamSource(stream);
       const processor = audioContext.createScriptProcessor(4096, 1, 1);
       processorRef.current = processor;
-
       source.connect(processor);
       processor.connect(audioContext.destination);
-
       processor.onaudioprocess = (event) => {
         if (!socket.socketRef.current || socket.socketRef.current.readyState !== WebSocket.OPEN) return;
-
         const inputData = event.inputBuffer.getChannelData(0);
         const pcmData = new Int16Array(inputData.length);
-        for (let i = 0; i < inputData.length; i++) {
-          pcmData[i] = Math.max(-1, Math.min(1, inputData[i])) * 32767;
-        }
+        for (let i = 0; i < inputData.length; i++) pcmData[i] = Math.max(-1, Math.min(1, inputData[i])) * 32767;
         socket.socketRef.current.send(pcmData.buffer);
-
-        // Update local levels from mic
         let sum = 0;
         for (let i = 0; i < inputData.length; i++) sum += Math.abs(inputData[i]);
         const average = inputData.length ? sum / inputData.length : 0;
@@ -142,41 +122,16 @@ export default function App() {
   }, [socket.socketRef]);
 
   const toggleStreaming = useCallback(async () => {
-    if (isStreaming) {
-      stopStreamingLocal();
-      await patchUIState({ isStreaming: false });
-    } else {
-      await startStreamingLocal();
-      await patchUIState({ isStreaming: true });
-    }
+    if (isStreaming) { stopStreamingLocal(); await patchUIState({ isStreaming: false }); }
+    else { await startStreamingLocal(); await patchUIState({ isStreaming: true }); }
   }, [isStreaming, startStreamingLocal, stopStreamingLocal, patchUIState]);
 
-  useEffect(() => {
-    if (selectedVoiceGuild) {
-      voice.loadVoiceChannels(selectedVoiceGuild).catch(() => undefined);
-    }
-  }, [selectedVoiceGuild]);
-
-  useEffect(() => {
-    if (selectedTextGuild) {
-      voice.loadTextTargets(selectedTextGuild).catch(() => undefined);
-    }
-  }, [selectedTextGuild]);
-
-  useEffect(() => {
-    if (selectedTextChannel) {
-      messages.fetchMessages(selectedTextChannel).catch(() => undefined);
-    }
-  }, [selectedTextChannel]);
+  useEffect(() => { if (selectedVoiceGuild) voice.loadVoiceChannels(selectedVoiceGuild).catch(() => undefined); }, [selectedVoiceGuild]);
+  useEffect(() => { if (selectedTextGuild) voice.loadTextTargets(selectedTextGuild).catch(() => undefined); }, [selectedTextGuild]);
+  useEffect(() => { if (selectedTextChannel) messages.fetchMessages(selectedTextChannel).catch(() => undefined); }, [selectedTextChannel]);
 
   const toggleListening = useCallback(async () => {
-    if (isListening) {
-      await audioContextListenRef.current?.suspend();
-      userTimelinesRef.current.clear();
-      setIsListening(false);
-      await patchUIState({ isListening: false });
-      return;
-    }
+    if (isListening) { await audioContextListenRef.current?.suspend(); userTimelinesRef.current.clear(); setIsListening(false); await patchUIState({ isListening: false }); return; }
     const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
     audioContextListenRef.current ??= new AudioContextCtor({ sampleRate: SAMPLE_RATE });
     await audioContextListenRef.current.resume();
@@ -184,7 +139,7 @@ export default function App() {
     await patchUIState({ isListening: true });
   }, [isListening, patchUIState]);
 
-  const tabs = useMemo(() => ["voice", "media", "messages", "recordings", "analytics", "review"] as DashboardTab[], []);
+  const tabs = useMemo(() => ["live", "messages", "analytics", "review"] as DashboardTab[], []);
 
   return (
     <DashboardLayout
@@ -195,7 +150,7 @@ export default function App() {
     >
       <div className="md:hidden">
         <Tabs value={activeTab} onValueChange={(value) => patchUIState({ activeTab: value as DashboardTab })}>
-          <div className="mb-4 grid grid-cols-3 gap-1.5 rounded-2xl bg-muted p-1 sm:grid-cols-6">
+          <div className="mb-4 grid grid-cols-4 gap-1.5 rounded-2xl bg-muted p-1">
             {tabs.map((tab) => (
               <button key={tab} className={`rounded-xl px-2 py-2 text-xs font-medium ${activeTab === tab ? "bg-background text-foreground" : "text-muted-foreground"}`} onClick={() => patchUIState({ activeTab: tab })}>
                 {tab}
@@ -205,37 +160,29 @@ export default function App() {
         </Tabs>
       </div>
       <Tabs value={activeTab} onValueChange={(value) => patchUIState({ activeTab: value as DashboardTab })}>
-        <TabsContent value="voice">
+        <TabsContent value="live">
           {!isAuthenticated ? (
             <AuthOverlay onAuthenticated={() => setIsAuthenticated(true)} />
           ) : (
-            <VoicePanel
+            <LivePanel
               guilds={voice.guilds}
-              channels={voice.voiceChannels}
+              voiceChannels={voice.voiceChannels}
               selectedGuild={selectedVoiceGuild}
               selectedChannel={selectedVoiceChannel}
               status={voice.voiceStatus}
-              loading={voice.loading}
+              voiceLoading={voice.loading}
               activeSpeakers={activeSpeakers}
               levels={levels}
               isListening={isListening}
               isStreaming={isStreaming}
+              mediaState={media.mediaState}
+              mediaLoading={media.loading}
               onGuildChange={(guildId) => patchUIState({ selectedVoiceGuild: guildId, selectedVoiceChannel: "" })}
               onChannelChange={(channelId) => patchUIState({ selectedVoiceChannel: channelId })}
               onJoin={() => voice.joinVoice(selectedVoiceGuild, selectedVoiceChannel)}
               onDisconnect={() => voice.leaveVoice()}
               onListenToggle={toggleListening}
               onStreamingToggle={toggleStreaming}
-            />
-          )}
-        </TabsContent>
-        <TabsContent value="media">
-          {!isAuthenticated ? (
-            <AuthOverlay onAuthenticated={() => setIsAuthenticated(true)} />
-          ) : (
-            <MediaPanel
-              state={media.mediaState}
-              loading={media.loading}
               onQueueMusic={(source) => media.enqueue(source, "music")}
               onStartScreen={(source) => media.enqueue(source, "screen")}
               onSkip={media.skip}
@@ -255,13 +202,6 @@ export default function App() {
             onChannelChange={(channelId) => patchUIState({ selectedTextChannel: channelId })}
             onReanalyze={messages.reanalyze}
           />
-        </TabsContent>
-        <TabsContent value="recordings">
-          {!isAuthenticated ? (
-            <AuthOverlay onAuthenticated={() => setIsAuthenticated(true)} />
-          ) : (
-            <RecordingsPanel />
-          )}
         </TabsContent>
         <TabsContent value="analytics">
           <AnalyticsPanel

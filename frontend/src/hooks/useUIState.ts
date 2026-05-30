@@ -3,7 +3,7 @@ import { getUIState, updateUIState } from "../api/uiState";
 import type { UIState } from "../types/ui";
 
 export function useUIState() {
-  const [uiState, setUIState] = useState<UIState>({ activeTab: "voice" });
+  const [uiState, setUIState] = useState<UIState>({ activeTab: "live" });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -11,7 +11,7 @@ export function useUIState() {
     let cancelled = false;
     getUIState()
       .then((state) => {
-        if (!cancelled) setUIState({ activeTab: "voice", ...state });
+        if (!cancelled) setUIState({ activeTab: "live", ...state });
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : String(err));
