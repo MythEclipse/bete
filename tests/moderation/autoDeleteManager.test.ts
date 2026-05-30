@@ -46,11 +46,13 @@ function createMessage(overrides: Partial<MessageRecord> = {}): MessageRecord {
   };
 }
 
-function createClient(options: {
-  canManageMessages?: boolean;
-  fetchError?: unknown;
-  deleteError?: unknown;
-} = {}) {
+function createClient(
+  options: {
+    canManageMessages?: boolean;
+    fetchError?: unknown;
+    deleteError?: unknown;
+  } = {},
+) {
   const deleteMock = vi.fn(async () => {
     if (options.deleteError) throw options.deleteError;
   });
@@ -113,7 +115,11 @@ describe("attemptAutoDeleteFlaggedMessage", () => {
       createMessage(), // defaults to flagged
     );
 
-    expect(result).toEqual({ deleted: true, skipped: false, reason: "deleted" });
+    expect(result).toEqual({
+      deleted: true,
+      skipped: false,
+      reason: "deleted",
+    });
     expect(fetchMessageMock).toHaveBeenCalledWith("m1");
     expect(deleteMock).toHaveBeenCalledTimes(1);
   });
@@ -127,7 +133,11 @@ describe("attemptAutoDeleteFlaggedMessage", () => {
       createMessage({ ai_status: "warn" }),
     );
 
-    expect(result).toEqual({ deleted: true, skipped: false, reason: "deleted" });
+    expect(result).toEqual({
+      deleted: true,
+      skipped: false,
+      reason: "deleted",
+    });
     expect(fetchMessageMock).toHaveBeenCalledWith("m1");
     expect(deleteMock).toHaveBeenCalledTimes(1);
   });

@@ -110,7 +110,13 @@ export async function getHourlyStats(input: {
     // Initialize all hour buckets
     const buckets = new Map<
       string,
-      { count: number; clean: number; warned: number; flagged: number; error: number }
+      {
+        count: number;
+        clean: number;
+        warned: number;
+        flagged: number;
+        error: number;
+      }
     >();
 
     for (let h = 0; h < hours; h++) {
@@ -151,23 +157,156 @@ export async function getHourlyStats(input: {
 // ── Topic Trends ───────────────────────────────────────────────────────
 
 const STOP_WORDS = new Set([
-  "yang", "dan", "itu", "ini", "dengan", "akan", "pada", "dari", "di", "ke",
-  "untuk", "tidak", "ada", "juga", "sudah", "saya", "kamu", "dia", "mereka",
-  "kami", "aku", "lo", "lu", "gua", "gue", "org", "orang", "aja", "sama",
-  "kalo", "kalau", "bisa", "karena", "gak", "nggak", "ga", "tak", "belum",
-  "udah", "dah", "lah", "kah", "pun", "nih", "tuh", "deh", "dong", "si",
-  "nya", "kan", "ya", "yah", "yuk", "kok", "loh", "nah", "wow", "eh",
-  "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-  "have", "has", "had", "having", "do", "does", "did", "doing",
-  "will", "would", "could", "should", "may", "might", "must", "shall",
-  "i", "you", "he", "she", "it", "we", "they", "me", "him", "her",
-  "us", "them", "my", "your", "his", "its", "our", "their",
-  "and", "but", "or", "nor", "not", "so", "yet", "for", "if",
-  "to", "of", "in", "on", "at", "by", "as", "with", "about",
-  "just", "then", "now", "here", "there", "when", "where", "why",
-  "how", "all", "both", "each", "few", "more", "most", "other",
-  "some", "such", "only", "own", "same", "too", "very", "can",
-  "go", "ok", "okay", "yeah", "yes", "no",
+  "yang",
+  "dan",
+  "itu",
+  "ini",
+  "dengan",
+  "akan",
+  "pada",
+  "dari",
+  "di",
+  "ke",
+  "untuk",
+  "tidak",
+  "ada",
+  "juga",
+  "sudah",
+  "saya",
+  "kamu",
+  "dia",
+  "mereka",
+  "kami",
+  "aku",
+  "lo",
+  "lu",
+  "gua",
+  "gue",
+  "org",
+  "orang",
+  "aja",
+  "sama",
+  "kalo",
+  "kalau",
+  "bisa",
+  "karena",
+  "gak",
+  "nggak",
+  "ga",
+  "tak",
+  "belum",
+  "udah",
+  "dah",
+  "lah",
+  "kah",
+  "pun",
+  "nih",
+  "tuh",
+  "deh",
+  "dong",
+  "si",
+  "nya",
+  "kan",
+  "ya",
+  "yah",
+  "yuk",
+  "kok",
+  "loh",
+  "nah",
+  "wow",
+  "eh",
+  "the",
+  "a",
+  "an",
+  "is",
+  "are",
+  "was",
+  "were",
+  "be",
+  "been",
+  "being",
+  "have",
+  "has",
+  "had",
+  "having",
+  "do",
+  "does",
+  "did",
+  "doing",
+  "will",
+  "would",
+  "could",
+  "should",
+  "may",
+  "might",
+  "must",
+  "shall",
+  "i",
+  "you",
+  "he",
+  "she",
+  "it",
+  "we",
+  "they",
+  "me",
+  "him",
+  "her",
+  "us",
+  "them",
+  "my",
+  "your",
+  "his",
+  "its",
+  "our",
+  "their",
+  "and",
+  "but",
+  "or",
+  "nor",
+  "not",
+  "so",
+  "yet",
+  "for",
+  "if",
+  "to",
+  "of",
+  "in",
+  "on",
+  "at",
+  "by",
+  "as",
+  "with",
+  "about",
+  "just",
+  "then",
+  "now",
+  "here",
+  "there",
+  "when",
+  "where",
+  "why",
+  "how",
+  "all",
+  "both",
+  "each",
+  "few",
+  "more",
+  "most",
+  "other",
+  "some",
+  "such",
+  "only",
+  "own",
+  "same",
+  "too",
+  "very",
+  "can",
+  "go",
+  "ok",
+  "okay",
+  "yeah",
+  "yes",
+  "no",
 ]);
 
 function extractTopics(messages: MessageRecord[], topN = 15): TopicTrend[] {
@@ -182,22 +321,36 @@ function extractTopics(messages: MessageRecord[], topN = 15): TopicTrend[] {
         const topics = analysis.topics;
         if (topics && Array.isArray(topics)) {
           for (const topic of topics) {
-            const key = typeof topic === "string" ? topic : topic.name || topic.topic;
+            const key =
+              typeof topic === "string" ? topic : topic.name || topic.topic;
             if (!key) continue;
             const k = key.toLowerCase();
             const score = msg.ai_moderation_score || 0;
             const existing = topicScores.get(k);
-            if (existing) { existing.count++; existing.score += score; }
-            else { topicScores.set(k, { count: 1, score }); }
+            if (existing) {
+              existing.count++;
+              existing.score += score;
+            } else {
+              topicScores.set(k, { count: 1, score });
+            }
           }
         }
         if (analysis.category) {
           const cat = String(analysis.category).toLowerCase();
           const existing = topicScores.get(cat);
-          if (existing) { existing.count++; existing.score += msg.ai_moderation_score || 0; }
-          else { topicScores.set(cat, { count: 1, score: msg.ai_moderation_score || 0 }); }
+          if (existing) {
+            existing.count++;
+            existing.score += msg.ai_moderation_score || 0;
+          } else {
+            topicScores.set(cat, {
+              count: 1,
+              score: msg.ai_moderation_score || 0,
+            });
+          }
         }
-      } catch { /* not valid JSON */ }
+      } catch {
+        /* not valid JSON */
+      }
     }
 
     if (msg.content) {
@@ -227,7 +380,11 @@ function extractTopics(messages: MessageRecord[], topN = 15): TopicTrend[] {
 
   for (const [word, count] of sortedWords) {
     if (!topicScores.has(word)) {
-      results.push({ topic: word, count, score: flaggedWordFreq.get(word) || 0 });
+      results.push({
+        topic: word,
+        count,
+        score: flaggedWordFreq.get(word) || 0,
+      });
     }
   }
 
@@ -308,7 +465,8 @@ export async function getUserLeaderboard(input: {
         existing.message_count++;
         if (msg.type === "edited") existing.edited_count++;
         if (msg.type === "deleted") existing.deleted_count++;
-        if (msg.ai_status === "flagged" || msg.ai_status === "warn") existing.flagged_count++;
+        if (msg.ai_status === "flagged" || msg.ai_status === "warn")
+          existing.flagged_count++;
         if (msg.created_at > existing.last_active) {
           existing.last_active = msg.created_at;
         }
@@ -320,7 +478,8 @@ export async function getUserLeaderboard(input: {
           message_count: 1,
           edited_count: msg.type === "edited" ? 1 : 0,
           deleted_count: msg.type === "deleted" ? 1 : 0,
-          flagged_count: msg.ai_status === "flagged" || msg.ai_status === "warn" ? 1 : 0,
+          flagged_count:
+            msg.ai_status === "flagged" || msg.ai_status === "warn" ? 1 : 0,
           last_active: msg.created_at,
         });
       }
@@ -367,7 +526,11 @@ export async function getModerationStats(input: {
 
     const breakdown: ModerationBreakdown = {
       total: rows.length,
-      clean: 0, warned: 0, flagged: 0, error: 0, pending: 0,
+      clean: 0,
+      warned: 0,
+      flagged: 0,
+      error: 0,
+      pending: 0,
       average_score: 0,
     };
 
@@ -398,7 +561,13 @@ export async function getModerationStats(input: {
       "Failed to get moderation stats",
     );
     return {
-      total: 0, clean: 0, warned: 0, flagged: 0, error: 0, pending: 0, average_score: 0,
+      total: 0,
+      clean: 0,
+      warned: 0,
+      flagged: 0,
+      error: 0,
+      pending: 0,
+      average_score: 0,
     };
   }
 }
@@ -446,7 +615,7 @@ export interface ViolatorStat {
   flagged_count: number;
   warned_count: number;
   violation_score: number; // weighted: flagged*3 + warned*1
-  worst_flags: string[];   // unique flag types
+  worst_flags: string[]; // unique flag types
   last_violation: number;
 }
 
@@ -477,16 +646,19 @@ export async function getTopViolators(input: {
       .where(and(...conditions) as SQL)
       .orderBy(asc(messagesTable.created_at))) as MessageRecord[];
 
-    const userMap = new Map<string, {
-      user_id: string;
-      username: string;
-      avatar_url: string | null;
-      total_messages: number;
-      flagged_count: number;
-      warned_count: number;
-      flags_set: Set<string>;
-      last_violation: number;
-    }>();
+    const userMap = new Map<
+      string,
+      {
+        user_id: string;
+        username: string;
+        avatar_url: string | null;
+        total_messages: number;
+        flagged_count: number;
+        warned_count: number;
+        flags_set: Set<string>;
+        last_violation: number;
+      }
+    >();
 
     for (const msg of rows) {
       let entry = userMap.get(msg.user_id);
@@ -506,7 +678,8 @@ export async function getTopViolators(input: {
 
       entry.total_messages++;
 
-      const isViolation = msg.ai_status === "flagged" || msg.ai_status === "warn";
+      const isViolation =
+        msg.ai_status === "flagged" || msg.ai_status === "warn";
 
       if (msg.ai_status === "flagged") {
         entry.flagged_count++;
@@ -522,7 +695,9 @@ export async function getTopViolators(input: {
           if (Array.isArray(flags)) {
             for (const f of flags) entry.flags_set.add(String(f));
           }
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       }
 
       if (isViolation && msg.created_at > entry.last_violation) {
@@ -571,13 +746,15 @@ export async function getAnalyticsOverview(input: {
   const now = Date.now();
   const since = now - hours * 3600_000;
 
-  const [messages, hourly, topics, topUsers, totalChannels] = await Promise.all([
-    getModerationStats(input),
-    getHourlyStats(input),
-    getTopicTrends(input),
-    getUserLeaderboard(input),
-    getActiveChannelCount({ guildId, hours }),
-  ]);
+  const [messages, hourly, topics, topUsers, totalChannels] = await Promise.all(
+    [
+      getModerationStats(input),
+      getHourlyStats(input),
+      getTopicTrends(input),
+      getUserLeaderboard(input),
+      getActiveChannelCount({ guildId, hours }),
+    ],
+  );
 
   return {
     period: { start: since, end: now },

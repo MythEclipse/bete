@@ -493,9 +493,13 @@ export const pgMessageReviewsTable = pgTable(
     reviewed_at: pgBigint("reviewed_at", { mode: "number" }),
   },
   (table) => ({
-    messageIdIdx: pgIndex("idx_message_reviews_message_id").on(table.message_id),
+    messageIdIdx: pgIndex("idx_message_reviews_message_id").on(
+      table.message_id,
+    ),
     statusIdx: pgIndex("idx_message_reviews_status").on(table.status),
-    createdAtIdx: pgIndex("idx_message_reviews_created_at").on(table.created_at),
+    createdAtIdx: pgIndex("idx_message_reviews_created_at").on(
+      table.created_at,
+    ),
     guildStatusIdx: pgIndex("idx_message_reviews_guild_status").on(
       table.guild_id,
       table.status,
@@ -553,9 +557,14 @@ export const pgModerationActionsTable = pgTable(
     user_id: pgText("user_id"),
     guild_id: pgText("guild_id").notNull(),
     action_type: pgText("action_type", {
-      enum: ["delete_message", "mute_user", "warn_user", "kick_user", "ban_user"],
-    })
-      .notNull(),
+      enum: [
+        "delete_message",
+        "mute_user",
+        "warn_user",
+        "kick_user",
+        "ban_user",
+      ],
+    }).notNull(),
     reason: pgText("reason"),
     executed_by: pgText("executed_by"),
     status: pgText("status", {
@@ -593,9 +602,14 @@ export const sqliteModerationActionsTable = sqliteTable(
     user_id: sqliteText("user_id"),
     guild_id: sqliteText("guild_id").notNull(),
     action_type: sqliteText("action_type", {
-      enum: ["delete_message", "mute_user", "warn_user", "kick_user", "ban_user"],
-    })
-      .notNull(),
+      enum: [
+        "delete_message",
+        "mute_user",
+        "warn_user",
+        "kick_user",
+        "ban_user",
+      ],
+    }).notNull(),
     reason: sqliteText("reason"),
     executed_by: sqliteText("executed_by"),
     status: sqliteText("status", {

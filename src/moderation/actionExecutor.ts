@@ -1,9 +1,6 @@
 import type { Client, Guild, User } from "discord.js-selfbot-v13";
 import { createChildLogger } from "../logger.js";
-import {
-  getModerationAction,
-  updateModerationAction,
-} from "./messageStore.js";
+import { getModerationAction, updateModerationAction } from "./messageStore.js";
 import type { ModerationAction, ModerationActionType } from "./types.js";
 
 const logger = createChildLogger("action-executor");
@@ -151,9 +148,7 @@ async function executeWarnUser(
     }
 
     const reason = action.reason || "Warned by moderation system";
-    await user.send(
-      `You have been warned in ${guild.name}. Reason: ${reason}`,
-    );
+    await user.send(`You have been warned in ${guild.name}. Reason: ${reason}`);
 
     logger.info(
       { userId: action.user_id, guildId: guild.id },
@@ -257,10 +252,7 @@ export async function processPendingActions(
       }
     }
 
-    logger.info(
-      { guildId, ...result },
-      "Processed pending moderation actions",
-    );
+    logger.info({ guildId, ...result }, "Processed pending moderation actions");
 
     return result;
   } catch (error) {

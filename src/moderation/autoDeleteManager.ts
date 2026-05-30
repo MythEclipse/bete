@@ -10,7 +10,9 @@ const parseStringList = (value?: string | null): string[] => {
   if (!value) return [];
   try {
     const parsed = JSON.parse(value) as unknown;
-    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is string => typeof item === "string")
+      : [];
   } catch {
     return value
       .split(",")
@@ -23,7 +25,8 @@ const parseStringList = (value?: string | null): string[] => {
 function deriveSeverity(msg: MessageRecord): string {
   if (msg.ai_severity) return msg.ai_severity;
   const score = msg.ai_confidence ?? msg.ai_moderation_score ?? 0;
-  if (msg.ai_status === "flagged") return score >= 0.9 ? "critical" : score >= 0.7 ? "high" : "medium";
+  if (msg.ai_status === "flagged")
+    return score >= 0.9 ? "critical" : score >= 0.7 ? "high" : "medium";
   if (msg.ai_status === "warn") return score >= 0.6 ? "medium" : "low";
   return "none";
 }
@@ -32,19 +35,28 @@ function deriveSeverity(msg: MessageRecord): string {
 function deriveRecommendedAction(msg: MessageRecord): string {
   if (msg.ai_recommended_action) return msg.ai_recommended_action;
   const severity = deriveSeverity(msg);
-  if (msg.ai_status === "flagged" && (severity === "critical" || severity === "high")) return "delete";
+  if (
+    msg.ai_status === "flagged" &&
+    (severity === "critical" || severity === "high")
+  )
+    return "delete";
   if (msg.ai_status === "flagged") return "review";
   if (msg.ai_status === "warn") return "warn";
   return "none";
 }
 
 function isAutoDeleteEligible(message: MessageRecord): boolean {
-  if (message.ai_status !== "flagged" && message.ai_status !== "warn") return false;
+  if (message.ai_status !== "flagged" && message.ai_status !== "warn")
+    return false;
 
   const confidence = message.ai_confidence ?? message.ai_moderation_score ?? 0;
   if (confidence < config.AUTO_DELETE_MIN_CONFIDENCE) {
     logger.info(
-      { messageId: message.id, confidence, threshold: config.AUTO_DELETE_MIN_CONFIDENCE },
+      {
+        messageId: message.id,
+        confidence,
+        threshold: config.AUTO_DELETE_MIN_CONFIDENCE,
+      },
       "Auto-delete skipped: confidence below threshold",
     );
     return false;
@@ -72,31 +84,49 @@ function isAutoDeleteEligible(message: MessageRecord): boolean {
     return false;
   }
 
-  const allowedCategories = parseStringList(config.AUTO_DELETE_ALLOWED_CATEGORIES);
+  const allowedCategories = parseStringList(
+    config.AUTO_DELETE_ALLOWED_CATEGORIES,
+  );
   if (allowedCategories.length > 0) {
-    const messageCategories = parseStringList(message.ai_categories ?? message.ai_moderation_flags);
-    const hasAllowedCategory = messageCategories.some((cat) => allowedCategories.includes(cat));
+    const messageCategories = parseStringList(
+      message.ai_categories ?? message.ai_moderation_flags,
+    );
+    const hasAllowedCategory = messageCategories.some((cat) =>
+      allowedCategories.includes(cat),
+    );
     if (!hasAllowedCategory) {
       logger.info(
-        { messageId: message.id, categories: messageCategories, allowed: allowedCategories },
+        {
+          messageId: message.id,
+          categories: messageCategories,
+          allowed: allowedCategories,
+        },
         "Auto-delete skipped: no allowed categories match",
       );
       return false;
     }
   }
 
-  const excludedChannels = parseStringList(config.AUTO_DELETE_EXCLUDED_CHANNEL_IDS);
+  const excludedChannels = parseStringList(
+    config.AUTO_DELETE_EXCLUDED_CHANNEL_IDS,
+  );
   if (excludedChannels.length > 0) {
     const channelId = message.thread_id ?? message.channel_id;
     if (excludedChannels.includes(channelId)) {
-      logger.info({ messageId: message.id, channelId }, "Auto-delete skipped: channel excluded");
+      logger.info(
+        { messageId: message.id, channelId },
+        "Auto-delete skipped: channel excluded",
+      );
       return false;
     }
   }
 
   const excludedUsers = parseStringList(config.AUTO_DELETE_EXCLUDED_USER_IDS);
   if (excludedUsers.length > 0 && excludedUsers.includes(message.user_id)) {
-    logger.info({ messageId: message.id, userId: message.user_id }, "Auto-delete skipped: user excluded");
+    logger.info(
+      { messageId: message.id, userId: message.user_id },
+      "Auto-delete skipped: user excluded",
+    );
     return false;
   }
 
@@ -115,13 +145,21 @@ async function logAutoDeleteAttempt(
       action_type: "delete_message",
       reason: result.reason,
       executed_by: "auto-delete-manager",
-      status: result.deleted ? "executed" : result.reason === "dry_run" ? "executed" : "failed",
+      status: result.deleted
+        ? "executed"
+        : result.reason === "dry_run"
+          ? "executed"
+          : "failed",
       error: result.reason === "error" ? result.reason : null,
-      executed_at: result.deleted || result.reason === "dry_run" ? Date.now() : null,
+      executed_at:
+        result.deleted || result.reason === "dry_run" ? Date.now() : null,
     });
   } catch (error) {
     logger.warn(
-      { messageId: message.id, error: error instanceof Error ? error.message : String(error) },
+      {
+        messageId: message.id,
+        error: error instanceof Error ? error.message : String(error),
+      },
       "Failed to persist auto-delete action log",
     );
   }
@@ -147,7 +185,11 @@ function isAlreadyDeletedError(error: unknown): boolean {
 
 function hasChannelMessagesApi(
   channel: unknown,
-): channel is { messages: { fetch: (id: string) => Promise<{ delete: () => Promise<unknown> }> } } {
+): channel is {
+  messages: {
+    fetch: (id: string) => Promise<{ delete: () => Promise<unknown> }>;
+  };
+} {
   return Boolean(
     channel &&
       typeof channel === "object" &&
@@ -160,12 +202,17 @@ function hasChannelMessagesApi(
 
 function hasPermissionApi(
   channel: unknown,
-): channel is { permissionsFor: (member: unknown) => { has: (permission: string) => boolean } | null } {
+): channel is {
+  permissionsFor: (
+    member: unknown,
+  ) => { has: (permission: string) => boolean } | null;
+} {
   return Boolean(
     channel &&
       typeof channel === "object" &&
       "permissionsFor" in channel &&
-      typeof (channel as { permissionsFor?: unknown }).permissionsFor === "function",
+      typeof (channel as { permissionsFor?: unknown }).permissionsFor ===
+        "function",
   );
 }
 
@@ -178,19 +225,30 @@ export async function attemptAutoDeleteFlaggedMessage(
   }
 
   if (message.ai_status !== "flagged" && message.ai_status !== "warn") {
-    const result = { deleted: false, skipped: true, reason: "not_flagged_or_warn" } as AutoDeleteResult;
+    const result = {
+      deleted: false,
+      skipped: true,
+      reason: "not_flagged_or_warn",
+    } as AutoDeleteResult;
     await logAutoDeleteAttempt(message, result);
     return result;
   }
 
   if (!isAutoDeleteEligible(message)) {
-    const result = { deleted: false, skipped: true, reason: "not_eligible" } as AutoDeleteResult;
+    const result = {
+      deleted: false,
+      skipped: true,
+      reason: "not_eligible",
+    } as AutoDeleteResult;
     await logAutoDeleteAttempt(message, result);
     return result;
   }
 
   if (!client?.user?.id) {
-    logger.warn({ messageId: message.id }, "Auto-delete skipped: client user missing");
+    logger.warn(
+      { messageId: message.id },
+      "Auto-delete skipped: client user missing",
+    );
     return { deleted: false, skipped: true, reason: "client_user_missing" };
   }
 
@@ -232,11 +290,19 @@ export async function attemptAutoDeleteFlaggedMessage(
         { messageId: message.id, channelId, userId: client.user.id },
         "Auto-delete skipped: current user lacks Manage Messages",
       );
-      return { deleted: false, skipped: true, reason: "missing_manage_messages" };
+      return {
+        deleted: false,
+        skipped: true,
+        reason: "missing_manage_messages",
+      };
     }
 
     if (config.AUTO_DELETE_FLAGGED_DRY_RUN) {
-      const result = { deleted: false, skipped: true, reason: "dry_run" } as AutoDeleteResult;
+      const result = {
+        deleted: false,
+        skipped: true,
+        reason: "dry_run",
+      } as AutoDeleteResult;
       await logAutoDeleteAttempt(message, result);
       logger.info(
         { messageId: message.id, channelId },
@@ -248,7 +314,11 @@ export async function attemptAutoDeleteFlaggedMessage(
     const discordMessage = await channel.messages.fetch(message.id);
     await discordMessage.delete();
 
-    const result = { deleted: true, skipped: false, reason: "deleted" } as AutoDeleteResult;
+    const result = {
+      deleted: true,
+      skipped: false,
+      reason: "deleted",
+    } as AutoDeleteResult;
     await logAutoDeleteAttempt(message, result);
     logger.info(
       { messageId: message.id, channelId },
@@ -257,7 +327,11 @@ export async function attemptAutoDeleteFlaggedMessage(
     return result;
   } catch (error) {
     if (isAlreadyDeletedError(error)) {
-      const result = { deleted: true, skipped: false, reason: "already_deleted" } as AutoDeleteResult;
+      const result = {
+        deleted: true,
+        skipped: false,
+        reason: "already_deleted",
+      } as AutoDeleteResult;
       await logAutoDeleteAttempt(message, result);
       logger.info(
         { messageId: message.id, code: getErrorCode(error) },
@@ -266,7 +340,11 @@ export async function attemptAutoDeleteFlaggedMessage(
       return result;
     }
 
-    const result = { deleted: false, skipped: true, reason: "error" } as AutoDeleteResult;
+    const result = {
+      deleted: false,
+      skipped: true,
+      reason: "error",
+    } as AutoDeleteResult;
     await logAutoDeleteAttempt(message, result);
     logger.error(
       {

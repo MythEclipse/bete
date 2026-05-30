@@ -66,7 +66,8 @@ async function isSafeUrl(urlStr: string): Promise<boolean> {
 
 function extractOgImage(html: string): string | null {
   // Look for <meta ... property="og:image" ... content="..."> or <meta ... name="twitter:image" ... content="...">
-  const ogRegex = /<meta[^>]*(?:property|name)=["'](?:og:image|twitter:image)["'][^>]*content=["']([^"']+)["']/i;
+  const ogRegex =
+    /<meta[^>]*(?:property|name)=["'](?:og:image|twitter:image)["'][^>]*content=["']([^"']+)["']/i;
   const match = html.match(ogRegex);
   if (match && match[1]) {
     // Unescape basic HTML entities
@@ -74,7 +75,8 @@ function extractOgImage(html: string): string | null {
   }
 
   // Try reversed attribute order: <meta ... content="..." ... property="og:image">
-  const ogRegexRev = /<meta[^>]*content=["']([^"']+)["'][^>]*(?:property|name)=["'](?:og:image|twitter:image)["']/i;
+  const ogRegexRev =
+    /<meta[^>]*content=["']([^"']+)["'][^>]*(?:property|name)=["'](?:og:image|twitter:image)["']/i;
   const matchRev = html.match(ogRegexRev);
   if (matchRev && matchRev[1]) {
     return matchRev[1].replace(/&amp;/g, "&").replace(/&quot;/g, '"');

@@ -17,11 +17,7 @@ export function createAnalyticsRoutes(): Router {
   // Query params: guildId (required), channelId, hours (default 24)
   router.get("/analytics/overview", async (req, res, next) => {
     try {
-      const {
-        guildId,
-        channelId,
-        hours,
-      } = req.query as {
+      const { guildId, channelId, hours } = req.query as {
         guildId?: string;
         channelId?: string;
         hours?: string;
@@ -53,11 +49,7 @@ export function createAnalyticsRoutes(): Router {
   // Query params: guildId (required), channelId, hours (default 24)
   router.get("/analytics/hourly", async (req, res, next) => {
     try {
-      const {
-        guildId,
-        channelId,
-        hours,
-      } = req.query as {
+      const { guildId, channelId, hours } = req.query as {
         guildId?: string;
         channelId?: string;
         hours?: string;
@@ -89,11 +81,7 @@ export function createAnalyticsRoutes(): Router {
   // Query params: guildId (required), channelId, hours (default 24)
   router.get("/analytics/topics", async (req, res, next) => {
     try {
-      const {
-        guildId,
-        channelId,
-        hours,
-      } = req.query as {
+      const { guildId, channelId, hours } = req.query as {
         guildId?: string;
         channelId?: string;
         hours?: string;
@@ -125,12 +113,7 @@ export function createAnalyticsRoutes(): Router {
   // Query params: guildId (required), channelId, hours (default 24), limit (default 20)
   router.get("/analytics/leaderboard", async (req, res, next) => {
     try {
-      const {
-        guildId,
-        channelId,
-        hours,
-        limit,
-      } = req.query as {
+      const { guildId, channelId, hours, limit } = req.query as {
         guildId?: string;
         channelId?: string;
         hours?: string;
@@ -165,11 +148,7 @@ export function createAnalyticsRoutes(): Router {
   // Query params: guildId (required), channelId, hours (default 24)
   router.get("/analytics/stats", async (req, res, next) => {
     try {
-      const {
-        guildId,
-        channelId,
-        hours,
-      } = req.query as {
+      const { guildId, channelId, hours } = req.query as {
         guildId?: string;
         channelId?: string;
         hours?: string;
@@ -201,12 +180,7 @@ export function createAnalyticsRoutes(): Router {
   // Query params: guildId (required), channelId, hours (default 24), limit (default 20)
   router.get("/analytics/violators", async (req, res, next) => {
     try {
-      const {
-        guildId,
-        channelId,
-        hours,
-        limit,
-      } = req.query as {
+      const { guildId, channelId, hours, limit } = req.query as {
         guildId?: string;
         channelId?: string;
         hours?: string;

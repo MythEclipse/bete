@@ -9,7 +9,9 @@ import {
 
 describe("normalizeDiscordCustomEmoji", () => {
   it("replaces static custom emoji", () => {
-    const result = normalizeDiscordCustomEmoji("Bersiaplah woy <:hadeh:1217434294281048185>");
+    const result = normalizeDiscordCustomEmoji(
+      "Bersiaplah woy <:hadeh:1217434294281048185>",
+    );
     expect(result.text).toBe("Bersiaplah woy [emoji:hadeh]");
     expect(result.emojiNames).toContain("hadeh");
   });
@@ -61,7 +63,9 @@ describe("buildModerationTextEvidence", () => {
     expect(evidence.normalized).toContain("[emoji:hadeh]");
     expect(evidence.badwords).toHaveLength(0);
     expect(evidence.hasBadwords).toBe(false);
-    expect(evidence.notes.some((n) => n.includes("no Indonesian badword"))).toBe(true);
+    expect(
+      evidence.notes.some((n) => n.includes("no Indonesian badword")),
+    ).toBe(true);
     expect(evidence.notes.some((n) => n.includes("emoji:hadeh"))).toBe(true);
     expect(evidence.notes.some((n) => n.includes("casual"))).toBe(true);
   });
@@ -69,7 +73,9 @@ describe("buildModerationTextEvidence", () => {
   it("detects badword when present", async () => {
     const evidence = await buildModerationTextEvidence("anjing loe kontol");
     expect(evidence.hasBadwords).toBe(true);
-    expect(evidence.notes.some((n) => n.includes("badword detected"))).toBe(true);
+    expect(evidence.notes.some((n) => n.includes("badword detected"))).toBe(
+      true,
+    );
   });
 });
 

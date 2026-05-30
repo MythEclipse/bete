@@ -404,7 +404,9 @@ interface AIAnalysisUpdate {
   error?: string | null;
 }
 
-function stringifyAIList(value: string[] | string | null | undefined): string | null {
+function stringifyAIList(
+  value: string[] | string | null | undefined,
+): string | null {
   if (value == null) return null;
   return Array.isArray(value) ? JSON.stringify(value) : value;
 }
@@ -867,7 +869,9 @@ export async function createMessageReview(
   }
 }
 
-export async function getMessageReview(id: string): Promise<MessageReview | null> {
+export async function getMessageReview(
+  id: string,
+): Promise<MessageReview | null> {
   try {
     const database = db();
     const rows = await database
@@ -878,7 +882,10 @@ export async function getMessageReview(id: string): Promise<MessageReview | null
     return (rows[0] as MessageReview) || null;
   } catch (error) {
     logger.error(
-      { reviewId: id, error: error instanceof Error ? error.message : String(error) },
+      {
+        reviewId: id,
+        error: error instanceof Error ? error.message : String(error),
+      },
       "Failed to get message review",
     );
     throw error;
@@ -918,7 +925,10 @@ export async function listMessageReviews(query: {
       .select()
       .from(messageReviewsTable)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(desc(messageReviewsTable.created_at), desc(messageReviewsTable.id))
+      .orderBy(
+        desc(messageReviewsTable.created_at),
+        desc(messageReviewsTable.id),
+      )
       .limit(limit + 1);
 
     return pageRows<MessageReview>(rows, limit);
@@ -946,7 +956,10 @@ export async function updateMessageReview(
     return rows[0] || null;
   } catch (error) {
     logger.error(
-      { reviewId: id, error: error instanceof Error ? error.message : String(error) },
+      {
+        reviewId: id,
+        error: error instanceof Error ? error.message : String(error),
+      },
       "Failed to update message review",
     );
     throw error;
@@ -986,7 +999,9 @@ export async function createModerationAction(
   }
 }
 
-export async function getModerationAction(id: string): Promise<ModerationAction | null> {
+export async function getModerationAction(
+  id: string,
+): Promise<ModerationAction | null> {
   try {
     const database = db();
     const rows = await database
@@ -997,7 +1012,10 @@ export async function getModerationAction(id: string): Promise<ModerationAction 
     return (rows[0] as ModerationAction) || null;
   } catch (error) {
     logger.error(
-      { actionId: id, error: error instanceof Error ? error.message : String(error) },
+      {
+        actionId: id,
+        error: error instanceof Error ? error.message : String(error),
+      },
       "Failed to get moderation action",
     );
     throw error;
@@ -1033,7 +1051,10 @@ export async function listModerationActions(query: {
       .select()
       .from(moderationActionsTable)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(desc(moderationActionsTable.created_at), desc(moderationActionsTable.id))
+      .orderBy(
+        desc(moderationActionsTable.created_at),
+        desc(moderationActionsTable.id),
+      )
       .limit(limit + 1);
 
     return pageRows<ModerationAction>(rows, limit);
@@ -1061,7 +1082,10 @@ export async function updateModerationAction(
     return rows[0] || null;
   } catch (error) {
     logger.error(
-      { actionId: id, error: error instanceof Error ? error.message : String(error) },
+      {
+        actionId: id,
+        error: error instanceof Error ? error.message : String(error),
+      },
       "Failed to update moderation action",
     );
     throw error;
@@ -1071,7 +1095,9 @@ export async function updateModerationAction(
 // Retention Policies CRUD
 // =======================
 
-export async function getRetentionPolicy(guildId: string): Promise<RetentionPolicy | null> {
+export async function getRetentionPolicy(
+  guildId: string,
+): Promise<RetentionPolicy | null> {
   try {
     const database = db();
     const rows = await database
@@ -1082,7 +1108,10 @@ export async function getRetentionPolicy(guildId: string): Promise<RetentionPoli
     return (rows[0] as RetentionPolicy) || null;
   } catch (error) {
     logger.error(
-      { guildId, error: error instanceof Error ? error.message : String(error) },
+      {
+        guildId,
+        error: error instanceof Error ? error.message : String(error),
+      },
       "Failed to get retention policy",
     );
     throw error;
@@ -1155,7 +1184,10 @@ export async function getExpiredMessages(
     return rows as MessageRecord[];
   } catch (error) {
     logger.error(
-      { retentionDays, error: error instanceof Error ? error.message : String(error) },
+      {
+        retentionDays,
+        error: error instanceof Error ? error.message : String(error),
+      },
       "Failed to get expired messages",
     );
     throw error;

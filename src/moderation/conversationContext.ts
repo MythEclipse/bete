@@ -51,7 +51,10 @@ export async function buildConversationContext(
   const targetLines = await Promise.all(
     targets.map((msg) => formatMessageForPrompt(msg, "target")),
   );
-  let usedTokens = targetLines.reduce((sum, line) => sum + estimateTokens(line), 0);
+  let usedTokens = targetLines.reduce(
+    (sum, line) => sum + estimateTokens(line),
+    0,
+  );
 
   const selectedContextLines: string[] = [];
 

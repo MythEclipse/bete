@@ -7,9 +7,7 @@ import { config } from "../config.js";
 import { createChildLogger } from "../logger.js";
 import { retryWithBackoff } from "../retry.js";
 import { attemptAutoDeleteFlaggedMessage } from "./autoDeleteManager.js";
-import {
-  buildConversationContext,
-} from "./conversationContext.js";
+import { buildConversationContext } from "./conversationContext.js";
 import { runModerationAnalysis } from "./llmModerationClient.js";
 import {
   getAttachmentsForMessages,

@@ -21,19 +21,59 @@ export const INDONESIAN_SLANG_LEXICON: Record<string, SlangLexiconEntry> = {
   krn: { normalized: "karena", note: "common abbreviation" },
   jgn: { normalized: "jangan", note: "common abbreviation" },
   dh: { normalized: "sudah", note: "common abbreviation", safeByDefault: true },
-  udh: { normalized: "sudah", note: "common abbreviation", safeByDefault: true },
-  blm: { normalized: "belum", note: "common abbreviation", safeByDefault: true },
-  sdh: { normalized: "sudah", note: "common abbreviation", safeByDefault: true },
-  dg: { normalized: "dengan", note: "common abbreviation", safeByDefault: true },
+  udh: {
+    normalized: "sudah",
+    note: "common abbreviation",
+    safeByDefault: true,
+  },
+  blm: {
+    normalized: "belum",
+    note: "common abbreviation",
+    safeByDefault: true,
+  },
+  sdh: {
+    normalized: "sudah",
+    note: "common abbreviation",
+    safeByDefault: true,
+  },
+  dg: {
+    normalized: "dengan",
+    note: "common abbreviation",
+    safeByDefault: true,
+  },
   dr: { normalized: "dari", note: "common abbreviation", safeByDefault: true },
-  dlm: { normalized: "dalam", note: "common abbreviation", safeByDefault: true },
+  dlm: {
+    normalized: "dalam",
+    note: "common abbreviation",
+    safeByDefault: true,
+  },
   gt: { normalized: "gitu", note: "common abbreviation", safeByDefault: true },
-  doang: { normalized: "doang", note: "Indonesian 'only/just'", safeByDefault: true },
+  doang: {
+    normalized: "doang",
+    note: "Indonesian 'only/just'",
+    safeByDefault: true,
+  },
   si: { normalized: "si", note: "Indonesian particle", safeByDefault: true },
-  kah: { normalized: "kah", note: "Indonesian question particle", safeByDefault: true },
-  ku: { normalized: "aku", note: "first-person informal pronoun", safeByDefault: true },
-  mu: { normalized: "kamu", note: "second-person informal pronoun suffix", safeByDefault: true },
-  nya: { normalized: "nya", note: "Indonesian possessive suffix", safeByDefault: true },
+  kah: {
+    normalized: "kah",
+    note: "Indonesian question particle",
+    safeByDefault: true,
+  },
+  ku: {
+    normalized: "aku",
+    note: "first-person informal pronoun",
+    safeByDefault: true,
+  },
+  mu: {
+    normalized: "kamu",
+    note: "second-person informal pronoun suffix",
+    safeByDefault: true,
+  },
+  nya: {
+    normalized: "nya",
+    note: "Indonesian possessive suffix",
+    safeByDefault: true,
+  },
 
   // =========================================================================
   // Profanity — consonant-dropped / vowelless slang
@@ -41,17 +81,29 @@ export const INDONESIAN_SLANG_LEXICON: Record<string, SlangLexiconEntry> = {
   ajg: { normalized: "anjing", note: "slang for 'anjing' (profanity)" },
   anjg: { normalized: "anjing", note: "slang for 'anjing' (profanity)" },
   njing: { normalized: "anjing", note: "slang for 'anjing' (profanity)" },
-  aj: { normalized: "anjing", note: "ultra-short slang for 'anjing' (profanity)" },
+  aj: {
+    normalized: "anjing",
+    note: "ultra-short slang for 'anjing' (profanity)",
+  },
   anj: { normalized: "anjing", note: "short slang for 'anjing' (profanity)" },
   anjingg: { normalized: "anjing", note: "elongated 'anjing' (profanity)" },
-  ajgg: { normalized: "anjing", note: "vowelless + elongated 'anjing' (profanity)" },
+  ajgg: {
+    normalized: "anjing",
+    note: "vowelless + elongated 'anjing' (profanity)",
+  },
   // anjir variants
   anjir: { normalized: "anjing", note: "slang for 'anjing' (profanity)" },
   njir: { normalized: "anjing", note: "slang for 'anjing' (profanity)" },
   njr: { normalized: "anjing", note: "vowelless 'anjir' (profanity)" },
   anjay: { normalized: "anjing", note: "slang 'anjay' (profanity-adjacent)" },
-  bjir: { normalized: "anjing", note: "slang interjection 'bjir' (profanity-adjacent)" },
-  bjirr: { normalized: "anjing", note: "elongated 'bjir' (profanity-adjacent)" },
+  bjir: {
+    normalized: "anjing",
+    note: "slang interjection 'bjir' (profanity-adjacent)",
+  },
+  bjirr: {
+    normalized: "anjing",
+    note: "elongated 'bjir' (profanity-adjacent)",
+  },
   // bangsat variants
   bgsd: { normalized: "bangsat", note: "slang for 'bangsat' (profanity)" },
   bgst: { normalized: "bangsat", note: "slang for 'bangsat' (profanity)" },
@@ -91,8 +143,14 @@ export const INDONESIAN_SLANG_LEXICON: Record<string, SlangLexiconEntry> = {
   sln: { normalized: "sialan", note: "slang for 'sialan' (profanity)" },
   sialann: { normalized: "sialan", note: "elongated 'sialan' (profanity)" },
   // jancuk (Javanese)
-  jncuk: { normalized: "jancuk", note: "Javanese slang for 'jancuk' (profanity)" },
-  jcuk: { normalized: "jancuk", note: "Javanese slang for 'jancuk' (profanity)" },
+  jncuk: {
+    normalized: "jancuk",
+    note: "Javanese slang for 'jancuk' (profanity)",
+  },
+  jcuk: {
+    normalized: "jancuk",
+    note: "Javanese slang for 'jancuk' (profanity)",
+  },
   jncukk: { normalized: "jancuk", note: "elongated 'jancuk' (profanity)" },
   // kampret
   kmprt: { normalized: "kampret", note: "slang for 'kampret' (profanity)" },
@@ -118,7 +176,10 @@ export const INDONESIAN_SLANG_LEXICON: Record<string, SlangLexiconEntry> = {
   // entod
   ntd: { normalized: "entod", note: "slang for 'entod' (profanity)" },
   // Javanese insults
-  ndasmu: { normalized: "ndasmu", note: "Javanese insult 'ndasmu' (profanity)" },
+  ndasmu: {
+    normalized: "ndasmu",
+    note: "Javanese insult 'ndasmu' (profanity)",
+  },
   ndas: { normalized: "ndas", note: "Javanese insult 'ndas' (profanity)" },
   // piyo (Javanese profanity)
   piyoo: { normalized: "piyo", note: "Javanese slang 'piyo' (profanity)" },
@@ -135,31 +196,67 @@ export const INDONESIAN_SLANG_LEXICON: Record<string, SlangLexiconEntry> = {
   // furry subculture
   furry: { normalized: "furry", note: "furry / prohibited topic" },
   furries: { normalized: "furry", note: "furry / prohibited topic" },
-  transfurry: { normalized: "transfurry", note: "transfurry / prohibited topic" },
-  transfur: { normalized: "transfurry", note: "slang for 'transfurry' / prohibited topic" },
-  protogen: { normalized: "protogen", note: "furry subculture / prohibited topic" },
+  transfurry: {
+    normalized: "transfurry",
+    note: "transfurry / prohibited topic",
+  },
+  transfur: {
+    normalized: "transfurry",
+    note: "slang for 'transfurry' / prohibited topic",
+  },
+  protogen: {
+    normalized: "protogen",
+    note: "furry subculture / prohibited topic",
+  },
   therian: { normalized: "therian", note: "therianthropy / prohibited topic" },
-  therianthropy: { normalized: "therianthropy", note: "therianthropy / prohibited topic" },
-  otherkin: { normalized: "otherkin", note: "otherkin identity / prohibited topic" },
+  therianthropy: {
+    normalized: "therianthropy",
+    note: "therianthropy / prohibited topic",
+  },
+  otherkin: {
+    normalized: "otherkin",
+    note: "otherkin identity / prohibited topic",
+  },
   // furry-adjacent terms
   yiff: { normalized: "yiff", note: "furry sexual content / prohibited topic" },
   fursona: { normalized: "fursona", note: "furry persona / prohibited topic" },
-  fursonas: { normalized: "fursona", note: "furry personas / prohibited topic" },
+  fursonas: {
+    normalized: "fursona",
+    note: "furry personas / prohibited topic",
+  },
   fursuit: { normalized: "fursuit", note: "furry costume / prohibited topic" },
-  fursuits: { normalized: "fursuit", note: "furry costumes / prohibited topic" },
+  fursuits: {
+    normalized: "fursuit",
+    note: "furry costumes / prohibited topic",
+  },
   // sexual orientation terms
   gayy: { normalized: "gay", note: "elongated 'gay' / prohibited topic" },
   lesbi: { normalized: "lesbian", note: "lesbian / prohibited topic" },
-  lesbii: { normalized: "lesbian", note: "slang for 'lesbian' / prohibited topic" },
+  lesbii: {
+    normalized: "lesbian",
+    note: "slang for 'lesbian' / prohibited topic",
+  },
   homo: { normalized: "homo", note: "homosexual slur / prohibited topic" },
   waria: { normalized: "waria", note: "waria / prohibited topic" },
   trans: { normalized: "transgender", note: "transgender / prohibited topic" },
-  nonbinary: { normalized: "nonbinary", note: "nonbinary identity / prohibited topic" },
-  nb: { normalized: "nonbinary", note: "nonbinary abbreviation / prohibited topic" },
-  genderfluid: { normalized: "genderfluid", note: "genderfluid / prohibited topic" },
+  nonbinary: {
+    normalized: "nonbinary",
+    note: "nonbinary identity / prohibited topic",
+  },
+  nb: {
+    normalized: "nonbinary",
+    note: "nonbinary abbreviation / prohibited topic",
+  },
+  genderfluid: {
+    normalized: "genderfluid",
+    note: "genderfluid / prohibited topic",
+  },
   pansexual: { normalized: "pansexual", note: "pansexual / prohibited topic" },
   asexual: { normalized: "asexual", note: "asexual / prohibited topic" },
-  ace: { normalized: "asexual", note: "asexual abbreviation / prohibited topic" },
+  ace: {
+    normalized: "asexual",
+    note: "asexual abbreviation / prohibited topic",
+  },
   enby: { normalized: "enby", note: "NB/nonbinary slang / prohibited topic" },
 
   // =========================================================================
@@ -448,8 +545,14 @@ export const INDONESIAN_SLANG_LEXICON: Record<string, SlangLexiconEntry> = {
   s4s: { normalized: "sub4sub", note: "spam engagement abbreviation" },
   like4like: { normalized: "like4like", note: "spam engagement" },
   l4l: { normalized: "like4like", note: "spam engagement abbreviation" },
-  dm: { normalized: "DM", note: "direct message — check for spam/scam context" },
-  pm: { normalized: "PM", note: "private message — check for spam/scam context" },
+  dm: {
+    normalized: "DM",
+    note: "direct message — check for spam/scam context",
+  },
+  pm: {
+    normalized: "PM",
+    note: "private message — check for spam/scam context",
+  },
   click: { normalized: "click", note: "potential clickbait/scam" },
   link: { normalized: "link", note: "potential spam link — check context" },
   free: { normalized: "free", note: "potential spam bait — check context" },
@@ -468,15 +571,24 @@ export const INDONESIAN_SLANG_LEXICON: Record<string, SlangLexiconEntry> = {
   narkoba: { normalized: "narkoba", note: "narcotics / prohibited topic" },
   kokain: { normalized: "kokain", note: "cocaine / prohibited topic" },
   ekstasi: { normalized: "ekstasi", note: "ecstasy / prohibited topic" },
-  shabu: { normalized: "sabu", note: "variant spelling 'sabu' / prohibited topic" },
+  shabu: {
+    normalized: "sabu",
+    note: "variant spelling 'sabu' / prohibited topic",
+  },
 
   // =========================================================================
   // Violence / threat indicators
   // =========================================================================
   bunuh: { normalized: "bunuh", note: "kill / violence indicator" },
-  bunuhdiri: { normalized: "bunuh diri", note: "suicide / self-harm indicator" },
+  bunuhdiri: {
+    normalized: "bunuh diri",
+    note: "suicide / self-harm indicator",
+  },
   mati: { normalized: "mati", note: "die / death — context-dependent" },
-  matiin: { normalized: "matikan", note: "turn off / kill — context-dependent" },
+  matiin: {
+    normalized: "matikan",
+    note: "turn off / kill — context-dependent",
+  },
   ancam: { normalized: "ancam", note: "threat indicator" },
   ancamn: { normalized: "ancaman", note: "threat indicator" },
   bakar: { normalized: "bakar", note: "burn / violence indicator" },
@@ -586,7 +698,11 @@ export const INDONESIAN_SLANG_LEXICON: Record<string, SlangLexiconEntry> = {
   porn: { normalized: "porno", note: "pornography / NSFW content" },
   porno: { normalized: "porno", note: "pornography / NSFW content" },
   bokep: { normalized: "bokep", note: "pornography / NSFW content" },
-  bokap: { normalized: "bokap", note: "'father' slang — NOT bokep", safeByDefault: true },
+  bokap: {
+    normalized: "bokap",
+    note: "'father' slang — NOT bokep",
+    safeByDefault: true,
+  },
   ngeseks: { normalized: "ngeseks", note: "having sex / NSFW content" },
   masturbasi: { normalized: "masturbasi", note: "masturbation / NSFW content" },
   onani: { normalized: "onani", note: "masturbation / NSFW content" },
@@ -634,8 +750,14 @@ export const INDONESIAN_SLANG_LEXICON: Record<string, SlangLexiconEntry> = {
   // =========================================================================
   // Money / financial scam indicators
   // =========================================================================
-  investment: { normalized: "investment", note: "potential investment scam — check context" },
-  investasi: { normalized: "investasi", note: "potential investment scam — check context" },
+  investment: {
+    normalized: "investment",
+    note: "potential investment scam — check context",
+  },
+  investasi: {
+    normalized: "investasi",
+    note: "potential investment scam — check context",
+  },
   crypto: { normalized: "crypto", note: "crypto scam — check context" },
   bitcoin: { normalized: "bitcoin", note: "crypto — check context" },
   btc: { normalized: "bitcoin", note: "crypto — check context" },
@@ -650,8 +772,17 @@ export const INDONESIAN_SLANG_LEXICON: Record<string, SlangLexiconEntry> = {
   claim: { normalized: "claim", note: "scam bait — check context" },
   klaim: { normalized: "klaim", note: "scam bait — check context" },
   verify: { normalized: "verify", note: "potential phishing — check context" },
-  verifikasi: { normalized: "verifikasi", note: "potential phishing — check context" },
+  verifikasi: {
+    normalized: "verifikasi",
+    note: "potential phishing — check context",
+  },
   wallet: { normalized: "wallet", note: "crypto wallet — check context" },
-  seed: { normalized: "seed phrase", note: "crypto seed phrase — check context" },
-  recovery: { normalized: "recovery phrase", note: "crypto recovery — check context" },
+  seed: {
+    normalized: "seed phrase",
+    note: "crypto seed phrase — check context",
+  },
+  recovery: {
+    normalized: "recovery phrase",
+    note: "crypto recovery — check context",
+  },
 };

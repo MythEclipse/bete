@@ -6,10 +6,7 @@ import {
   voiceRecordingsTable,
 } from "../database/schema.js";
 import { createChildLogger } from "../logger.js";
-import {
-  getExpiredMessages,
-  getRetentionPolicy,
-} from "./messageStore.js";
+import { getExpiredMessages, getRetentionPolicy } from "./messageStore.js";
 import type { RetentionPolicy } from "./types.js";
 import { and, eq, isNull, lt, sql } from "drizzle-orm";
 
@@ -152,7 +149,10 @@ export async function executeAllRetentionPolicies(): Promise<{
     return summary;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    logger.error({ error: message }, "Failed to execute all retention policies");
+    logger.error(
+      { error: message },
+      "Failed to execute all retention policies",
+    );
     throw error;
   }
 }
@@ -161,7 +161,9 @@ export async function executeAllRetentionPolicies(): Promise<{
  * Starts a periodic retention policy executor
  * Runs every 24 hours by default
  */
-export function startRetentionPolicyWorker(intervalMs: number = 24 * 60 * 60 * 1000): NodeJS.Timeout {
+export function startRetentionPolicyWorker(
+  intervalMs: number = 24 * 60 * 60 * 1000,
+): NodeJS.Timeout {
   logger.info({ intervalMs }, "Starting retention policy worker");
 
   const interval = setInterval(async () => {

@@ -53,10 +53,13 @@ export function normalizeDiscordCustomEmoji(text: string): {
   emojiNames: string[];
 } {
   const emojiNames: string[] = [];
-  const normalized = text.replace(CUSTOM_EMOJI_PATTERN, (_match, name: string) => {
-    emojiNames.push(name);
-    return `[emoji:${name}]`;
-  });
+  const normalized = text.replace(
+    CUSTOM_EMOJI_PATTERN,
+    (_match, name: string) => {
+      emojiNames.push(name);
+      return `[emoji:${name}]`;
+    },
+  );
 
   return { text: normalized, emojiNames };
 }
@@ -82,16 +85,47 @@ export function normalizeIndonesianSlang(text: string): {
 // ---------------------------------------------------------------------------
 
 const LOCAL_BADWORDS = [
-  "anjing", "bangsat", "brengsek", "bajingan", "kontol", "memek",
-  "tai", "goblok", "tolol", "bego", "sialan", "jancuk", "kampret",
-  "pepek", "jembut", "ngentot", "ngewe", "coli", "celaka", "laknat",
-  "pantek", "entod", "ndasmu", "ndas", "piyo", "asu",
+  "anjing",
+  "bangsat",
+  "brengsek",
+  "bajingan",
+  "kontol",
+  "memek",
+  "tai",
+  "goblok",
+  "tolol",
+  "bego",
+  "sialan",
+  "jancuk",
+  "kampret",
+  "pepek",
+  "jembut",
+  "ngentot",
+  "ngewe",
+  "coli",
+  "celaka",
+  "laknat",
+  "pantek",
+  "entod",
+  "ndasmu",
+  "ndas",
+  "piyo",
+  "asu",
 ];
 
 const FALSE_POSITIVE_WHITELISTS: Record<string, string[]> = {
   asu: [
-    "asus", "masuk", "termasuk", "dimasukkan", "memasukkan",
-    "kasur", "asumsi", "asuransi", "asupan", "pasukan", "pasundan",
+    "asus",
+    "masuk",
+    "termasuk",
+    "dimasukkan",
+    "memasukkan",
+    "kasur",
+    "asumsi",
+    "asuransi",
+    "asupan",
+    "pasukan",
+    "pasundan",
   ],
   goblok: ["goblok"],
   kontol: ["kontol"],
@@ -199,7 +233,9 @@ async function callNemotronContentSafety(text: string): Promise<string[]> {
  * Detect badwords in text using NVIDIA Nemotron-3 Content Safety API.
  * Falls back to local lexical list if API key is missing or call fails.
  */
-export async function detectIndonesianBadwords(text: string): Promise<string[]> {
+export async function detectIndonesianBadwords(
+  text: string,
+): Promise<string[]> {
   // Always run local detection first (fast, no network dependency)
   const localHits = detectLocalBadwords(text);
 
@@ -211,7 +247,10 @@ export async function detectIndonesianBadwords(text: string): Promise<string[]> 
       const allHits = Array.from(new Set([...localHits, ...apiCategories]));
       return allHits;
     } catch (error) {
-      log.warn({ error }, "NVIDIA Nemotron API call failed, falling back to local detection");
+      log.warn(
+        { error },
+        "NVIDIA Nemotron API call failed, falling back to local detection",
+      );
     }
   }
 
@@ -222,7 +261,9 @@ export async function detectIndonesianBadwords(text: string): Promise<string[]> 
 // Async evidence builders
 // ---------------------------------------------------------------------------
 
-export async function buildModerationTextEvidence(text: string): Promise<ModerationTextEvidence> {
+export async function buildModerationTextEvidence(
+  text: string,
+): Promise<ModerationTextEvidence> {
   const emojiNormalized = normalizeDiscordCustomEmoji(text);
   const slangNormalized = normalizeIndonesianSlang(emojiNormalized.text);
   const badwordHits = await detectIndonesianBadwords(slangNormalized.text);
@@ -249,7 +290,9 @@ export async function buildModerationTextEvidence(text: string): Promise<Moderat
   };
 }
 
-export async function formatModerationTextEvidenceForPrompt(text: string): Promise<string> {
+export async function formatModerationTextEvidenceForPrompt(
+  text: string,
+): Promise<string> {
   const evidence = await buildModerationTextEvidence(text);
   if (evidence.normalized === evidence.raw && evidence.notes.length === 0) {
     return "";
@@ -257,7 +300,9 @@ export async function formatModerationTextEvidenceForPrompt(text: string): Promi
 
   return [
     `[normalized_text: ${evidence.normalized}]`,
-    evidence.notes.length > 0 ? `[normalization_notes: ${evidence.notes.join("; ")}]` : null,
+    evidence.notes.length > 0
+      ? `[normalization_notes: ${evidence.notes.join("; ")}]`
+      : null,
   ]
     .filter(Boolean)
     .join(" ");
