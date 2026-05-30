@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Activity,
@@ -17,8 +17,7 @@ import {
 } from "lucide-react";
 import type { Channel, Guild } from "../../types/voice";
 import { useAnalytics } from "../../hooks/useAnalytics";
-import type { AnalyticsOverview, HourlyBucket, TopicTrend, UserStat, ViolatorStat } from "../../api/analytics";
-import { fetchViolators } from "../../api/analytics";
+import type { AnalyticsOverview, HourlyBucket, TopicTrend, UserStat, ViolatorStat } from "../../hooks/useAnalytics";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Select } from "../ui/select";
 import { Button } from "../ui/button";
@@ -63,36 +62,25 @@ export function AnalyticsPanel({
   onChannelChange,
 }: AnalyticsPanelProps) {
   const [hours, setHours] = useState(24);
-  const [violators, setViolators] = useState<ViolatorStat[]>([]);
-  const [violatorsLoading, setViolatorsLoading] = useState(false);
 
-  const { overview, loading, error, refresh } = useAnalytics({
+  const {
+    overview,
+    isLoading,
+    isFetching,
+    error,
+    refresh,
+    violators,
+    violatorsLoading,
+    violatorsFetching,
+    refreshViolators,
+  } = useAnalytics({
     guildId: selectedGuild,
     channelId: selectedChannel || undefined,
     hours,
   });
 
-  const loadViolators = useCallback(async () => {
-    if (!selectedGuild) return;
-    setViolatorsLoading(true);
-    try {
-      const data = await fetchViolators({
-        guildId: selectedGuild,
-        channelId: selectedChannel || undefined,
-        hours,
-        limit: 20,
-      });
-      setViolators(data);
-    } catch {
-      // silent
-    } finally {
-      setViolatorsLoading(false);
-    }
-  }, [selectedGuild, selectedChannel, hours]);
-
-  useEffect(() => {
-    loadViolators();
-  }, [loadViolators]);
+  // Loading is true only on first load (no cached data); fetching means background refresh
+  const loading = isLoading && !isFetching;
 
   return (
     <div className="grid gap-6">
@@ -155,11 +143,11 @@ export function AnalyticsPanel({
                 ))}
               </div>
               <Button
-                onClick={() => { refresh(); loadViolators(); }}
-                disabled={loading}
+                onClick={() => { refresh(); refreshViolators(); }}
+                disabled={isFetching}
                 className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white shadow-lg shadow-blue-500/25 transition-all hover:shadow-blue-500/40"
               >
-                {loading ? (
+                {isFetching ? (
                   <span className="flex items-center gap-2">
                     <motion.span
                       animate={{ rotate: 360 }}
@@ -267,7 +255,7 @@ export function AnalyticsPanel({
                       User dengan skor pelanggaran tertinggi (flagged × 3 + warned × 1).
                     </CardDescription>
                   </div>
-                  <Badge variant="destructive" className="animate-pulse">
+                  <Badge variant="destructive" className={cn(violatorsFetching && "animate-pulse")}>
                     {violators.length} pelanggar
                   </Badge>
                 </div>

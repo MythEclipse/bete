@@ -12,6 +12,8 @@ let db:
   | ReturnType<typeof drizzlePostgres>
   | ReturnType<typeof drizzleSqlite>
   | null = null;
+let rawSqlite: ReturnType<typeof Database> | null = null;
+let rawPool: Pool | null = null;
 
 /**
  * Initialize the database connection based on DATABASE_TYPE config
@@ -49,6 +51,7 @@ export async function initializeDatabase() {
       });
     }
 
+    rawPool = pool;
     db = drizzlePostgres(pool, { schema });
     // Provide a simple `run` helper for tests that expect it.
     try {
@@ -61,6 +64,7 @@ export async function initializeDatabase() {
     const sqlite = new Database(".muxer-queue.db");
     sqlite.pragma("journal_mode = WAL");
 
+    rawSqlite = sqlite;
     db = drizzleSqlite(sqlite, { schema });
     // Expose a convenience `run` method used by tests that expect a simple API.
     // `sqlite` is the underlying better-sqlite3 Database instance.
@@ -86,6 +90,41 @@ export function getDatabase() {
     );
   }
   return db;
+}
+
+function convertPlaceholdersForPostgres(sql: string) {
+  let i = 0;
+  return sql.replace(/\?/g, () => `$${++i}`);
+}
+
+export async function executeAll(sql: string, params?: any[]) {
+  if (rawPool) {
+    const q = convertPlaceholdersForPostgres(sql);
+    const res = await rawPool.query(q, params || []);
+    return res.rows;
+  }
+
+  if (rawSqlite) {
+    const stmt = rawSqlite.prepare(sql);
+    return stmt.all(...(params || []));
+  }
+
+  throw new Error("Database not initialized. Call initializeDatabase() first.");
+}
+
+export async function executeGet(sql: string, params?: any[]) {
+  if (rawPool) {
+    const q = convertPlaceholdersForPostgres(sql);
+    const res = await rawPool.query(q, params || []);
+    return res.rows[0] ?? null;
+  }
+
+  if (rawSqlite) {
+    const stmt = rawSqlite.prepare(sql);
+    return stmt.get(...(params || []));
+  }
+
+  throw new Error("Database not initialized. Call initializeDatabase() first.");
 }
 
 /**
