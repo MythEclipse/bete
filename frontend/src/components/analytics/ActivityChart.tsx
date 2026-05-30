@@ -1,4 +1,3 @@
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import type { HourlyBucket } from "../../api/analytics";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 
@@ -36,44 +35,46 @@ export function ActivityChart({ hourly, loading }: ActivityChartProps) {
         <CardDescription className="text-xs">Distribusi pesan per jam berdasarkan status moderasi.</CardDescription>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={200}>
-          <AreaChart data={data} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
-            <XAxis dataKey="hour" tick={{ fontSize: 10, fill: "#64748b" }} tickLine={false} axisLine={{ stroke: "#334155" }} />
-            <YAxis tick={{ fontSize: 10, fill: "#64748b" }} tickLine={false} axisLine={false} width={28} />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: "#1e293b",
-                border: "1px solid #334155",
-                borderRadius: "6px",
-                fontSize: "11px",
-                color: "#e2e8f0",
-              }}
-              formatter={(value: unknown, name: unknown) => {
-                const v = typeof value === "number" ? value : String(value);
-                return [v, label(String(name))];
-              }}
-            />
-            <Legend wrapperStyle={{ fontSize: "11px" }} />
-            <Area type="monotone" dataKey="clean" stackId="1" stroke="#10b981" fill="#10b981" fillOpacity={0.6} name="clean" />
-            <Area type="monotone" dataKey="warned" stackId="1" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.6} name="warned" />
-            <Area type="monotone" dataKey="flagged" stackId="1" stroke="#ef4444" fill="#ef4444" fillOpacity={0.6} name="flagged" />
-            <Area type="monotone" dataKey="error" stackId="1" stroke="#f97316" fill="#f97316" fillOpacity={0.4} name="error" />
-          </AreaChart>
-        </ResponsiveContainer>
+        <div className="space-y-3">
+          <div className="grid grid-cols-4 gap-2 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <span>Clean</span>
+            <span>Warned</span>
+            <span>Flagged</span>
+            <span>Error</span>
+          </div>
+          <div className="max-h-55 space-y-2 overflow-auto pr-1">
+            {data.map((bucket) => {
+              const total = Math.max(bucket.total, 1);
+              const clean = bucket.clean / total;
+              const warned = bucket.warned / total;
+              const flagged = bucket.flagged / total;
+              const error = bucket.error / total;
+              return (
+                <div key={bucket.hour} className="grid gap-1 rounded-xl border border-border bg-background/50 p-3">
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                    <span className="font-medium text-foreground">{bucket.hour}</span>
+                    <span>{bucket.total} pesan</span>
+                  </div>
+                  <div className="flex h-3 overflow-hidden rounded-full bg-muted">
+                    <div className="bg-emerald-500/80" style={{ width: `${clean * 100}%` }} />
+                    <div className="bg-amber-500/80" style={{ width: `${warned * 100}%` }} />
+                    <div className="bg-red-500/80" style={{ width: `${flagged * 100}%` }} />
+                    <div className="bg-orange-500/80" style={{ width: `${error * 100}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
 }
 
-function label(key: string): string {
-  const map: Record<string, string> = { clean: "Clean", warned: "Warned", flagged: "Flagged", error: "Error" };
-  return map[key] ?? key;
-}
-
 function LoadingBox() {
   return (
     <Card className="col-span-2">
-      <CardContent className="flex h-[260px] items-center justify-center text-sm text-muted-foreground">
+      <CardContent className="flex h-65 items-center justify-center text-sm text-muted-foreground">
         <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
         <span className="ml-2">Memuat data...</span>
       </CardContent>
@@ -84,7 +85,7 @@ function LoadingBox() {
 function EmptyBox({ text }: { text: string }) {
   return (
     <Card className="col-span-2">
-      <CardContent className="flex h-[260px] items-center justify-center text-sm text-muted-foreground">
+      <CardContent className="flex h-65 items-center justify-center text-sm text-muted-foreground">
         {text}
       </CardContent>
     </Card>
