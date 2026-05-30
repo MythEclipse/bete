@@ -1,5 +1,6 @@
 import { executeAll, executeGet } from "../database/drizzle.js";
 import { createChildLogger } from "../logger.js";
+import { config } from "../config.js";
 import type { MessageRecord } from "./types.js";
 
 const logger = createChildLogger("analytics-store");
@@ -106,10 +107,16 @@ export async function getHourlyStats(input: {
 
   try {
     const since = Date.now() - hours * 3600_000;
-    const sqliteRows = await executeAll(
+    const isPg = config.DATABASE_TYPE === "postgres";
+
+    const hourExpr = isPg
+      ? `to_char(to_timestamp((created_at / 3600000) * 3600), 'YYYY-MM-DD HH24:MI:SS') as hour`
+      : `datetime((created_at / 3600000) * 3600, 'unixepoch') as hour`;
+
+    const rows = await executeAll(
       `
       SELECT
-        datetime((created_at / 3600000) * 3600, 'unixepoch') as hour,
+        ${hourExpr},
         count(*) as count,
         count(case when ai_status = 'clean' then 1 end) as clean,
         count(case when ai_status = 'warn' then 1 end) as warned,
@@ -141,7 +148,7 @@ export async function getHourlyStats(input: {
       buckets.set(key, { count: 0, clean: 0, warned: 0, flagged: 0, error: 0 });
     }
 
-    for (const row of sqliteRows) {
+    for (const row of rows) {
       const d = new Date(row.hour.replace(" ", "T") + "Z");
       const key = d.toISOString().slice(0, 13) + ":00:00Z";
       const bucket = buckets.get(key);
@@ -344,7 +351,7 @@ export async function getUserLeaderboard(input: {
         AND created_at >= ?
         AND deleted_at IS NULL
         ${channelId ? `AND (channel_id = ? OR thread_id = ?)` : ""}
-      GROUP BY user_id
+      GROUP BY user_id, username, avatar_url
       ORDER BY message_count DESC
       LIMIT ?
       `,
@@ -379,6 +386,12 @@ export async function getModerationStats(input: {
 
   try {
     const since = Date.now() - hours * 3600_000;
+    const isPg = config.DATABASE_TYPE === "postgres";
+
+    const avgScoreExpr = isPg
+      ? `round(avg(ai_moderation_score)::numeric, 2)`
+      : `round(avg(ai_moderation_score), 2)`;
+
     const row = await executeGet(
       `
       SELECT
@@ -388,7 +401,7 @@ export async function getModerationStats(input: {
         count(case when ai_status = 'flagged' then 1 end) as flagged,
         count(case when ai_status = 'error' then 1 end) as error,
         count(case when ai_status = 'pending' or ai_status IS NULL then 1 end) as pending,
-        round(avg(ai_moderation_score), 2) as average_score
+        ${avgScoreExpr} as average_score
       FROM messages
       WHERE guild_id = ?
         AND created_at >= ?
@@ -501,7 +514,7 @@ export async function getTopViolators(input: {
         AND created_at >= ?
         AND deleted_at IS NULL
         ${channelId ? `AND (channel_id = ? OR thread_id = ?)` : ""}
-      GROUP BY user_id
+      GROUP BY user_id, username, avatar_url
       HAVING flagged_count > 0 OR warned_count > 0
       ORDER BY (flagged_count * 3 + warned_count) DESC
       LIMIT ?

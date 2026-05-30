@@ -9,6 +9,9 @@ export interface MessageLocation {
   threadId: string | null;
   threadName: string | null;
   channelName: string | null;
+  nsfw?: boolean;
+  nsfwLevel?: string | null;
+  ageRestricted?: boolean;
 }
 
 export interface StickerEvidence {
@@ -74,12 +77,25 @@ export interface RichMessageMetadata {
 
 export function getMessageLocation(message: Message): MessageLocation {
   const channel = message.channel as TextChannel | ThreadChannel;
+  const safetyChannel = channel as TextChannel & {
+    nsfw?: boolean;
+    nsfwLevel?: string | null;
+  };
   if (!channel.isThread?.()) {
     return {
       channelId: message.channelId,
       threadId: null,
       threadName: null,
       channelName: "name" in channel ? channel.name : null,
+      nsfw: typeof safetyChannel.nsfw === "boolean" ? safetyChannel.nsfw : undefined,
+      nsfwLevel:
+        typeof safetyChannel.nsfwLevel === "string"
+          ? safetyChannel.nsfwLevel
+          : null,
+      ageRestricted:
+        typeof safetyChannel.nsfw === "boolean"
+          ? safetyChannel.nsfw
+          : undefined,
     };
   }
 
@@ -88,6 +104,13 @@ export function getMessageLocation(message: Message): MessageLocation {
     threadId: channel.id,
     threadName: channel.name,
     channelName: channel.parent?.name ?? null,
+    nsfw: typeof safetyChannel.nsfw === "boolean" ? safetyChannel.nsfw : undefined,
+    nsfwLevel:
+      typeof safetyChannel.nsfwLevel === "string"
+        ? safetyChannel.nsfwLevel
+        : null,
+    ageRestricted:
+      typeof safetyChannel.nsfw === "boolean" ? safetyChannel.nsfw : undefined,
   };
 }
 
@@ -198,6 +221,20 @@ export function parseRichMessageMetadata(
   } catch {
     return null;
   }
+}
+
+export function isAgeRestrictedMetadata(
+  metadata: string | null | undefined,
+): boolean {
+  const parsed = parseRichMessageMetadata(metadata);
+  if (!parsed) return false;
+
+  const nsfwLevel = parsed.channel.nsfwLevel?.toUpperCase();
+  return Boolean(
+    parsed.channel.nsfw ||
+      parsed.channel.ageRestricted ||
+      nsfwLevel === "AGE_RESTRICTED",
+  );
 }
 
 export function extractMessageMediaEvidence(

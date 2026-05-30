@@ -9,6 +9,7 @@ import { retryWithBackoff } from "../retry.js";
 import { attemptAutoDeleteFlaggedMessage } from "./autoDeleteManager.js";
 import { buildConversationContext } from "./conversationContext.js";
 import { runModerationAnalysis } from "./llmModerationClient.js";
+import { isAgeRestrictedMetadata } from "./messageMetadata.js";
 import {
   getAttachmentsForMessages,
   getConversationContextBefore,
@@ -17,6 +18,7 @@ import {
   getMessageById,
   getPendingConversationKeys,
   getPendingMessagesByConversation,
+  updateMessageAIAnalysis,
   updateMessagesAIAnalysisBulk,
 } from "./messageStore.js";
 import type {
@@ -54,6 +56,59 @@ function scheduleAutoDelete(row: MessageRecord): void {
     return;
   }
   setImmediate(run);
+}
+
+function isAgeRestrictedMessage(message: MessageRecord): boolean {
+  return isAgeRestrictedMetadata(message.metadata);
+}
+
+function buildAgeRestrictedSkipResult(): {
+  status: "clean";
+  flags: string | null;
+  score: number;
+  analysis: string;
+  categories: string[];
+  severity: "none";
+  confidence: number;
+  recommendedAction: "none";
+  analyzedAt: number;
+  error: null;
+} {
+  return {
+    status: "clean",
+    flags: JSON.stringify(["age_restricted"]),
+    score: 0,
+    analysis: "Skipped moderation for age-restricted content.",
+    categories: ["age_restricted"],
+    severity: "none",
+    confidence: 1,
+    recommendedAction: "none",
+    analyzedAt: Date.now(),
+    error: null,
+  };
+}
+
+async function skipAgeRestrictedMessages(
+  messages: MessageRecord[],
+): Promise<MessageRecord[]> {
+  const ageRestrictedMessages = messages.filter(isAgeRestrictedMessage);
+  if (ageRestrictedMessages.length === 0) {
+    return messages;
+  }
+
+  const skippedRows = await updateMessagesAIAnalysisBulk(
+    ageRestrictedMessages.map((message) => ({
+      messageId: message.id,
+      result: buildAgeRestrictedSkipResult(),
+    })),
+  );
+
+  for (const row of skippedRows) {
+    getModerationBroadcaster()?.messageAnalyzed(row);
+  }
+
+  const skippedIds = new Set(ageRestrictedMessages.map((message) => message.id));
+  return messages.filter((message) => !skippedIds.has(message.id));
 }
 
 // ---------------------------------------------------------------------------
@@ -672,13 +727,16 @@ function scheduleConversationAnalysis(conversationKey: string): void {
       conversationKey,
       config.AI_ANALYSIS_MAX_BATCH_SIZE,
     )
-      .then((messages) => {
+      .then(async (messages) => {
         if (messages.length === 0) return;
+
+        const processableMessages = await skipAgeRestrictedMessages(messages);
+        if (processableMessages.length === 0) return;
 
         // FIX #6: trim to token budget before sending to LLM.
         // 50 tokens overhead accounts for JSON structure + id/username fields.
         let trimmed = pickBatchWithinBudget(
-          messages,
+          processableMessages,
           config.AI_ANALYSIS_MAX_TARGET_TOKENS,
           50,
         );
@@ -687,12 +745,12 @@ function scheduleConversationAnalysis(conversationKey: string): void {
         // pickBatchWithinBudget returns [] — which would leave them permanently
         // stuck as `pending`.  Fall back to the first message alone so at
         // least one makes progress; the rest will be processed in later ticks.
-        if (trimmed.length === 0 && messages.length > 0) {
-          trimmed = messages.slice(0, 1);
+        if (trimmed.length === 0 && processableMessages.length > 0) {
+          trimmed = processableMessages.slice(0, 1);
           logger.warn(
             {
               conversationKey,
-              messageId: messages[0]?.id,
+              messageId: processableMessages[0]?.id,
               tokenBudget: config.AI_ANALYSIS_MAX_TARGET_TOKENS,
             },
             "All messages exceed token budget — processing first message alone to avoid stuck-pending deadlock",
@@ -731,6 +789,19 @@ export async function queueMessageAnalysis(messageId: string): Promise<void> {
       logger.warn({ messageId }, "Message not found for analysis queue");
       return;
     }
+
+    if (isAgeRestrictedMessage(message)) {
+      const updated = await updateMessageAIAnalysis(
+        message.id,
+        buildAgeRestrictedSkipResult(),
+      );
+      if (updated) {
+        getModerationBroadcaster()?.messageAnalyzed(updated);
+      }
+      logger.info({ messageId }, "Skipped AI analysis for age-restricted message");
+      return;
+    }
+
     queueConversationAnalysis(getConversationKey(message));
   } catch (error) {
     logger.error(
@@ -830,6 +901,10 @@ export function startPendingAIAnalysisWorker(client?: Client): void {
                 key,
                 config.AI_ANALYSIS_INDIVIDUAL_MAX_CONCURRENT,
               )
+                .then(async (msgs) => {
+                  const processableMessages = await skipAgeRestrictedMessages(msgs);
+                  return processableMessages;
+                })
                 .then((msgs) => {
                   if (msgs.length > 0) {
                     enqueueIndividualFallbacks(msgs);
