@@ -76,7 +76,6 @@ export const pgMessagesTable = pgTable(
       .default("pending"),
     ai_moderation_flags: pgText("ai_moderation_flags"),
     ai_moderation_score: pgReal("ai_moderation_score"),
-    ai_moderation_raw: pgText("ai_moderation_raw"),
     ai_analysis: pgText("ai_analysis"),
     ai_categories: pgText("ai_categories"),
     ai_severity: pgText("ai_severity", {
@@ -86,8 +85,6 @@ export const pgMessagesTable = pgTable(
     ai_recommended_action: pgText("ai_recommended_action", {
       enum: ["none", "monitor", "warn", "review", "delete", "escalate"],
     }),
-    ai_policy_version: pgText("ai_policy_version"),
-    ai_evidence: pgText("ai_evidence"),
     ai_analyzed_at: pgBigint("ai_analyzed_at", { mode: "number" }),
     ai_error: pgText("ai_error"),
   },
@@ -306,7 +303,6 @@ export const sqliteMessagesTable = sqliteTable(
       .default("pending"),
     ai_moderation_flags: sqliteText("ai_moderation_flags"),
     ai_moderation_score: sqliteReal("ai_moderation_score"),
-    ai_moderation_raw: sqliteText("ai_moderation_raw"),
     ai_analysis: sqliteText("ai_analysis"),
     ai_categories: sqliteText("ai_categories"),
     ai_severity: sqliteText("ai_severity", {
@@ -316,8 +312,6 @@ export const sqliteMessagesTable = sqliteTable(
     ai_recommended_action: sqliteText("ai_recommended_action", {
       enum: ["none", "monitor", "warn", "review", "delete", "escalate"],
     }),
-    ai_policy_version: sqliteText("ai_policy_version"),
-    ai_evidence: sqliteText("ai_evidence"),
     ai_analyzed_at: sqliteInteger("ai_analyzed_at"),
     ai_error: sqliteText("ai_error"),
   },

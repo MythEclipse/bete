@@ -90,7 +90,6 @@ export function createAnalysisRoutes(): Router {
         status: "pending",
         flags: null,
         score: null,
-        raw: null,
         analysis: null,
         analyzedAt: null,
         error: null,

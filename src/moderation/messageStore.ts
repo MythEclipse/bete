@@ -184,7 +184,6 @@ export async function updateMessageAsEdited(
         ai_status: "pending",
         ai_moderation_flags: null,
         ai_moderation_score: null,
-        ai_moderation_raw: null,
         ai_analysis: null,
         ai_analyzed_at: null,
         ai_error: null,
@@ -392,14 +391,11 @@ interface AIAnalysisUpdate {
   status: "pending" | "clean" | "warn" | "flagged" | "error";
   flags?: string | null;
   score?: number | null;
-  raw?: string | null;
   analysis?: string | null;
   categories?: string[] | string | null;
   severity?: MessageRecord["ai_severity"] | null;
   confidence?: number | null;
   recommendedAction?: MessageRecord["ai_recommended_action"] | null;
-  policyVersion?: string | null;
-  evidence?: string[] | string | null;
   analyzedAt?: number | null;
   error?: string | null;
 }
@@ -423,14 +419,11 @@ export async function updateMessageAIAnalysis(
         ai_status: result.status,
         ai_moderation_flags: result.flags ?? null,
         ai_moderation_score: result.score ?? null,
-        ai_moderation_raw: result.raw ?? null,
         ai_analysis: result.analysis ?? null,
         ai_categories: stringifyAIList(result.categories),
         ai_severity: result.severity ?? null,
         ai_confidence: result.confidence ?? result.score ?? null,
         ai_recommended_action: result.recommendedAction ?? null,
-        ai_policy_version: result.policyVersion ?? null,
-        ai_evidence: stringifyAIList(result.evidence),
         ai_analyzed_at: result.analyzedAt ?? Date.now(),
         ai_error: result.error ?? null,
       })
